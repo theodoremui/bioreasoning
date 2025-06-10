@@ -9,7 +9,7 @@
 
 from agents import Agent
 from bioagents.models.llms import LLM
-from bioagents.agents.reasoner import ReasoningAgent
+from bioagents.agents.base_agent import ReasoningAgent
 
 class ChitChatAgent(ReasoningAgent):
     """
@@ -32,6 +32,10 @@ class ChitChatAgent(ReasoningAgent):
             name=agent_name,
             model=model_name,
             instructions=self.instructions,
+            handoff_description=(
+                "You are a friendly conversational assistant to chit chat with the user "
+                "and your responses should be very brief and to the point."
+            ),
             handoffs=[],
             tools=[],
         )
