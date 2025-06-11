@@ -11,22 +11,27 @@
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
-from agents import RunResult
+from abc import ABC, abstractmethod
+import asyncio
+from agents import Runner, RunResult, gen_trace_id, trace
 from loguru import logger
 
 from bioagents.models.citation import Citation
 from bioagents.models.llms import LLM
 from bioagents.agents.common import AgentResponse
 
-class ReasoningAgent:
+class ReasoningAgent(ABC):
     def __init__(
         self, name: str, 
         model_name: str=LLM.GPT_4_1_MINI, 
-        instructions: str="You are a reasoning conversational agent."
+        instructions: str="You are a reasoning conversational agent.",
+        timeout: int=60
     ):
         self.name = name
-        self.llm = LLM(model_name)
+        self.model_name = model_name
         self.instructions = instructions
+        self.timeout = timeout
+        self._agent = None
 
     def _construct_response(
         self, 
@@ -56,12 +61,27 @@ class ReasoningAgent:
         )
         
     async def achat(self, query_str: str) -> AgentResponse:
-        logger.info(f"-> {self.name}: {query_str}")
-        prompt = (f"You are {self.name}. {self.instructions}\n\n"
-                  f"User query: {query_str}")
-        response = await self.llm.achat_completion(query_str=prompt)
-        return AgentResponse(response, [], "", "")
-    
+        if self._agent is None:
+            raise ValueError("Agent not initialized")
+        
+        try:
+            trace_id = gen_trace_id()
+            with trace(workflow_name="ReasoningAgent", trace_id=trace_id):
+                result = await asyncio.wait_for(
+                    Runner.run(
+                        starting_agent=self._agent,
+                        input=query_str,
+                        max_turns=3,
+                    ),
+                    timeout=self.timeout
+                )
+                    
+                logger.info(f"{self.name}: {query_str} -> {trace_id}")
+                return self._construct_response(result, "", "ReasoningAgent")
+                            
+        except Exception as e:
+            logger.error(f"achat: {str(e)}")
+            raise e
 #------------------------------------------------
 # Example usage
 #------------------------------------------------

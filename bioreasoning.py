@@ -27,9 +27,9 @@ st.set_page_config(
 
 # Initialize LLM client in session state if not already present
 if "llm_client" not in st.session_state:
-    st.session_state.llm_client = LLM(model=LLM.GPT_4_1_NANO)
+    st.session_state.llm_client = LLM(model_name=LLM.GPT_4_1_NANO)
 if "reasoner" not in st.session_state:
-    st.session_state.reasoner = BioConciergeAgent(name="Bio Reasoner")
+    st.session_state.reasoner = BioConciergeAgent(name="BioConcierge")
 
 #------------------------------------------------
 # Sidebar for user customizations
@@ -53,8 +53,8 @@ with st.sidebar:
     
     # Update the model in the LLM client when changed
     model = model_options[model_selection]
-    if st.session_state.llm_client._model != model:
-        st.session_state.llm_client._model = model
+    if st.session_state.llm_client._model_name != model:
+        st.session_state.llm_client._model_name = model
 
 #------------------------------------------------
 # Main app interface

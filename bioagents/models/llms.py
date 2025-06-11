@@ -24,15 +24,15 @@ class LLM:
     GPT_4_1_MINI = "gpt-4.1-mini"
     GPT_4_1_NANO = "gpt-4.1-nano"
     GPT_4O = "gpt-4o"
-    
+
     # Shared OpenAI client instance
     _client: OpenAI | None = None
     _async_client: AsyncOpenAI | None = None
-    _model = GPT_4_1_MINI
+    _model_name = GPT_4_1_MINI
     _timeout = 60
     
-    def __init__(self, model=GPT_4_1_MINI, timeout=60):
-        self._model = model
+    def __init__(self, model_name=GPT_4_1_MINI, timeout=60):
+        self._model_name = model_name
         self._timeout = timeout
         self._client = OpenAI(timeout=self._timeout)
         self._async_client = AsyncOpenAI(timeout=self._timeout)
@@ -50,7 +50,7 @@ class LLM:
         """
         response = await self._async_client.chat.completions.create(
             messages=[{"role": "user", "content": query_str}],
-            model=self._model,
+            model=self._model_name,
             **kwargs
         )
         content = ""
@@ -66,7 +66,7 @@ class LLM:
 if __name__ == "__main__":
     import asyncio
     
-    gpt41 = LLM(model=LLM.GPT_4_1_MINI)
+    gpt41 = LLM(model_name=LLM.GPT_4_1_MINI)
     # Async example
     async def main():
         response = await gpt41.achat_completion(

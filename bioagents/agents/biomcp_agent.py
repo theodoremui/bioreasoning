@@ -295,6 +295,10 @@ class BioMCPAgent(ReasoningAgent):
                 "provide clear explanations of the results and their significance. "
                 "If a biomedical query takes time, be patient as external databases may be slow."
             ),
+            handoff_description=(
+                "Use this subagent to answer questions about genetic variants, research articles, and biomedical data. "
+            ),
+            handoffs=[],
             mcp_servers=[mcp_server],
             model_settings=ModelSettings(tool_choice="auto"),
         )
