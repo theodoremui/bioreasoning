@@ -1,3 +1,12 @@
+#------------------------------------------------------------------------------
+# biomcp_server.py
+# 
+# This file provides the MCP server for the BioMCP agent.
+# 
+# Author: Theodore Mui
+# Date: 2025-06-11
+#------------------------------------------------------------------------------
+
 import asyncio
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client

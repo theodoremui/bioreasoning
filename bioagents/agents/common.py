@@ -1,5 +1,5 @@
 #------------------------------------------------------------------------------
-# base.py
+# common.py
 # 
 # This file provides base classes for agent interactions. It provides a common
 # interface for all agent responses.

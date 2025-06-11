@@ -1,11 +1,12 @@
 #------------------------------------------------------------------------------
-# bioreasoner.py
+# bio_concierge.py
 # 
-# This is a "Bio Reasoning Agent" that triage across multiple agents to answer
+# This is a "Bio Reasoning Concierge" that triage across multiple agents to answer
 # a user's question.  This agent orchestrates across the following subagents:
 # 
 # 1. Chit Chat Agent
 # 2. Web Reasoning Agent
+# 3. Bio MCP Agent
 # 
 # Author: Theodore Mui
 # Date: 2025-04-26

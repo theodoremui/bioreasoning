@@ -1,5 +1,5 @@
 #------------------------------------------------------------------------------
-# reasoner.py
+# base_agent.py
 # 
 # This is the base class for all reasoning agents. It provides a common interface
 # for all reasoning agents.

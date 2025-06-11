@@ -1,3 +1,12 @@
+#------------------------------------------------------------------------------
+# biomcp_agent.py
+# 
+# This file provides the MCP functionalities for the BioMCP agent.
+# 
+# Author: Theodore Mui
+# Date: 2025-06-11
+#------------------------------------------------------------------------------
+
 """
 Biomedical MCP Agent
 
