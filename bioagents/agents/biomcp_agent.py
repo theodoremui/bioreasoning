@@ -303,13 +303,15 @@ class BioMCPAgent(ReasoningAgent):
                 "Be helpful, accurate, and informative in your responses. When using tools, "
                 "provide clear explanations of the results and their significance. "
                 "If a biomedical query takes time, be patient as external databases may be slow."
+                "Your response MUST start with '[biomcp]' and then the response."
             ),
             handoff_description=(
                 "Use this subagent to answer questions about genetic variants, research articles, and biomedical data. "
             ),
             handoffs=[],
             mcp_servers=[mcp_server],
-            model_settings=ModelSettings(tool_choice="auto"),
+            model_settings=ModelSettings(tool_choice="required"),
+            tool_use_behavior="stop_on_first_tool",
         )
     
     async def start(self) -> None:
