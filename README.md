@@ -42,25 +42,26 @@ flowchart TB
       CA2[Intent Classifier]
       CA3[Router]
       CA1 --> CA2 --> CA3
-    end
-    
-    %% Agent Processing Layer
-    subgraph "Sub-agents"
-        direction LR
-        CC[Chitchat Agent]
-        BM[BioMCP Agent]
-        WS[Websearch Agent]
-    end
-    
-    CA3 --> CC
-    CA3 --> BM
-    CA3 --> WS
 
-    %% Aggregation and output
-    CC --> AG[Response Aggregator]
-    BM --> AG
-    WS --> AG
-    AG --> AR[Agent Response]
+        %% Agent Processing Layer
+        subgraph "Sub-agents"
+            direction LR
+            CC[Chitchat Agent]
+            BM[BioMCP Agent]
+            WS[Websearch Agent]
+        end
+        
+        CA3 --> CC
+        CA3 --> BM
+        CA3 --> WS
+
+        %% Aggregation and output
+        CC --> AG[Response Aggregator]
+        BM --> AG
+        WS --> AG
+        AG --> AR[Agent Response]
+
+    end
 ```
 
 
