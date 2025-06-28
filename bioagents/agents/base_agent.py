@@ -13,14 +13,21 @@ load_dotenv(find_dotenv())
 
 from abc import ABC, abstractmethod
 import asyncio
-from agents import Runner, RunResult, gen_trace_id, trace
+from agents import Agent, Runner, RunResult, gen_trace_id, trace
 from loguru import logger
+from typing import Optional
 
 from bioagents.models.citation import Citation
 from bioagents.models.llms import LLM
 from bioagents.agents.common import AgentResponse
 
 class ReasoningAgent(ABC):
+        
+    @property
+    def agent(self) -> Optional[Agent]:
+        return self._agent
+    
+    
     def __init__(
         self, name: str, 
         model_name: str=LLM.GPT_4_1_MINI, 
@@ -31,7 +38,7 @@ class ReasoningAgent(ABC):
         self.model_name = model_name
         self.instructions = instructions
         self.timeout = timeout
-        self._agent = None
+        self._agent:Agent = None
 
     def _construct_response(
         self, 
@@ -66,22 +73,22 @@ class ReasoningAgent(ABC):
         
         try:
             trace_id = gen_trace_id()
-            with trace(workflow_name="ReasoningAgent", trace_id=trace_id):
+            with trace(workflow_name="BaseWorkflow", trace_id=trace_id):
                 result = await asyncio.wait_for(
                     Runner.run(
                         starting_agent=self._agent,
                         input=query_str,
-                        max_turns=3,
                     ),
                     timeout=self.timeout
                 )
-                    
-                logger.info(f"{self.name}: {query_str} -> {trace_id}")
+
+                logger.info(f"{self.name}: {query_str} ({trace_id})")
                 return self._construct_response(result, "", "ReasoningAgent")
                             
         except Exception as e:
             logger.error(f"achat: {str(e)}")
             raise e
+        
 #------------------------------------------------
 # Example usage
 #------------------------------------------------

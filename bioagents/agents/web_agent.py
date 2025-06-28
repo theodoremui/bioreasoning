@@ -47,7 +47,7 @@ class WebReasoningAgent(ReasoningAgent):
             instructions=self.instructions,
             handoff_description="You are an expert about the real time web and the latest information & news about general topics.",
             tools=[WebSearchTool(
-                search_context_size="low"
+                search_context_size="medium"
             )],
             model_settings=ModelSettings(
                 tool_choice="required",
