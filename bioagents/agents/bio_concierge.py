@@ -35,7 +35,7 @@ class BioConciergeAgent(BaseAgent):
             "You are a bio-reasoning agent that routes queries to appropriate specialists. "
             "You analyze the user's query and determine the best way to respond."
             "\n## Response Instructions:\n"
-            "- Prepend the response with '[Concierge]'\n"
+            "- Prepend your response with '[Concierge]'\n"
         )
 
         super().__init__(name, model_name, instructions)
