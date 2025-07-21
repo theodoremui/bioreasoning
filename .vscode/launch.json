@@ -15,7 +15,20 @@
             }
         },
         {
-            "name": "streamlit",
+            "name": "streamlit frontend/app.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "streamlit",
+            "args": [
+                "run",
+                "frontend/app.py",
+                "--server.port",
+                "8501"
+            ],
+            "jinja": true
+        },
+        {
+            "name": "streamlit bioreasoning",
             "type": "debugpy",
             "request": "launch",
             "module": "streamlit",

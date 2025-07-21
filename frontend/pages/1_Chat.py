@@ -58,12 +58,7 @@ class ChatPage:
             st.markdown("## Chat Settings")
             
             # Model selection
-            self.model_selector.render()
-            
-            st.markdown("---")
-            
-            # Chat controls
-            st.markdown("### Chat Controls")
+            self.model_selector.render()            
             if st.button("Clear Chat History", type="secondary"):
                 SessionManager.clear_messages()
                 st.rerun()

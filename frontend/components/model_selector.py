@@ -58,9 +58,7 @@ class ModelSelector:
         
         Returns:
             str: The selected model identifier
-        """
-        st.markdown("### Model Selection")
-        
+        """        
         model_selection = st.selectbox(
             "Select LLM Model",
             list(self._model_options.keys()),
