@@ -17,8 +17,7 @@ import asyncio
 from bioagents.models.llms import LLM
 from bioagents.agents.common import AgentResponse
 from bioagents.agents.bio_concierge import BioConciergeAgent
-from bioagents.agents.common import AgentResponse
-from bioagents.agents.bio_concierge import BioConciergeAgent
+from bioagents.utils.async_utils import run_async_in_streamlit
 
 load_dotenv(find_dotenv())
 st.set_page_config(
@@ -86,7 +85,7 @@ if prompt := st.chat_input("How can I help you?"):
     with st.chat_message("agent"):
         with st.spinner("Thinking..."):
             reasoner = st.session_state.reasoner
-            agent_response: AgentResponse = asyncio.run(reasoner.achat(prompt))
+            agent_response: AgentResponse = run_async_in_streamlit(reasoner.achat(prompt))
             st.write(agent_response.response_str)
             
             if agent_response.citations:

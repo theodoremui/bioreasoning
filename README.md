@@ -92,9 +92,17 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 4. **Set up environment variables**
+   
+   **Option A: Use the setup script (Recommended)**
+   ```bash
+   ./scripts/setup-env.sh
+   ```
+   
+   **Option B: Manual setup**
    - Create a `.env` file in the project root:
      ```bash
      OPENAI_API_KEY=your_openai_api_key_here
+     ELEVENLABS_API_KEY=your_elevenlabs_api_key_here  # Required for podcast generation
      ```
    - (Optional) Set database and server variables as needed.
 
@@ -161,11 +169,40 @@ This is the user-facing web app.
 
 ## Troubleshooting
 
+### General Issues
 - **Server/Client not running**: Ensure both `run-knowledge-server.sh` and `run-knowledge-client.sh` are running in separate terminals
 - **Port conflicts**: Default ports are 8501 (client) and 8131 (server); change if needed
 - **Missing dependencies**: Run `uv sync` and ensure your virtual environment is activated
 - **API key issues**: Check your `.env` file and ensure `OPENAI_API_KEY` is set
 - **File upload issues**: Supported formats are PDF, DOCX, TXT, and MD
+
+### Podcast Generation Issues
+- **"Podcast generation is not available"**: 
+  - Run `./scripts/setup-env.sh` to configure API keys
+  - Ensure both `OPENAI_API_KEY` and `ELEVENLABS_API_KEY` are set in your `.env` file
+  - Get your ElevenLabs API key from: https://elevenlabs.io/speech-synthesis
+
+- **"Authentication failed"**: 
+  - Check that your `ELEVENLABS_API_KEY` is valid and active
+  - Verify your ElevenLabs account has sufficient credits
+
+- **"API quota exceeded"**: 
+  - Check your ElevenLabs account usage and limits
+  - Consider upgrading your ElevenLabs plan if needed
+
+- **Audio generation fails**: 
+  - Ensure your document has sufficient content for conversation generation
+  - Try with a shorter document or different content
+
+### Environment Variable Issues
+- **"export: not a valid identifier" errors**: 
+  - Run `./scripts/check-env.sh` to diagnose .env file issues
+  - The script now properly handles multi-line values and special characters
+  - Check for proper variable name formatting (no spaces around equals signs)
+
+- **Missing or invalid API keys**: 
+  - Run `./scripts/check-env.sh` to verify your configuration
+  - Use `./scripts/setup-env.sh` to configure missing keys
 
 ---
 

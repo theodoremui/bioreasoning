@@ -15,4 +15,5 @@ else
 fi
 # Run the streamlit app
 echo "Starting MCP server..."
+export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 uv run bioagents/mcp/knowledge_server.py

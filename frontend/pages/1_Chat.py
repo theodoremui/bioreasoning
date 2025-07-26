@@ -21,6 +21,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from components.model_selector import ModelSelector
 from components.session_manager import SessionManager
 from bioagents.agents.common import AgentResponse
+from bioagents.utils.async_utils import run_async_in_streamlit
 
 
 class ChatPage:
@@ -139,7 +140,7 @@ class ChatPage:
                 try:
                     # Get the reasoner and generate response
                     reasoner = SessionManager.get_reasoner()
-                    agent_response: AgentResponse = asyncio.run(reasoner.achat(prompt))
+                    agent_response: AgentResponse = run_async_in_streamlit(reasoner.achat(prompt))
                     
                     # Display the response
                     st.write(agent_response.response_str)

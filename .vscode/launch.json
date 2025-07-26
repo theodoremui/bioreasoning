@@ -37,6 +37,16 @@
                 "bioreasoning.py"
             ],
             "jinja": true
+        },
+        {
+            "name": "mcp server",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "bioagents/mcp/knowledge_server.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         }
     ]
 }

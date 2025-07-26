@@ -31,6 +31,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from components.session_manager import SessionManager
 from bioagents.models.file_info import FileInfo
+from bioagents.utils.async_utils import run_async_in_streamlit
+from bioagents.utils.audio_manager import AudioFileProcessor
 
 
 #------------------------------------------------
@@ -162,28 +164,16 @@ async def run_workflow(
 
 
 def sync_run_workflow(file: io.BytesIO, document_title: str):
-    try:
-        # Try to use existing event loop
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If loop is already running, schedule the coroutine
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run, run_workflow(file, document_title)
-                )
-                return future.result()
-        else:
-            return loop.run_until_complete(run_workflow(file, document_title))
-    except RuntimeError:
-        # No event loop exists, create one
-        if sys.platform == "win32":
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        return asyncio.run(run_workflow(file, document_title))
+    """Synchronous wrapper for workflow execution that handles event loop properly."""
+    return run_async_in_streamlit(run_workflow(file, document_title))
 
 
 async def create_podcast(file_content: str, config: PodcastConfig = None):
+    if PODCAST_GEN is None:
+        raise ValueError(
+            "Podcast generation is not available. Please ensure both ELEVENLABS_API_KEY and OPENAI_API_KEY "
+            "environment variables are set."
+        )
     audio_fl = await PODCAST_GEN.create_conversation(
         file_transcript=file_content, config=config
     )
@@ -191,7 +181,8 @@ async def create_podcast(file_content: str, config: PodcastConfig = None):
 
 
 def sync_create_podcast(file_content: str, config: PodcastConfig = None):
-    return asyncio.run(create_podcast(file_content=file_content, config=config))
+    """Synchronous wrapper for podcast creation that handles event loop properly."""
+    return run_async_in_streamlit(create_podcast(file_content=file_content, config=config))
 
 #------------------------------------------------
 # Initialize Session State
@@ -394,6 +385,7 @@ class DocumentsPage:
     def __init__(self):
         """Initialize the documents page."""
         self.document_manager = DocumentManager()
+        self.audio_processor = AudioFileProcessor()
         SessionManager.initialize_session()
         self._cleanup_processed_files_state()
     
@@ -609,20 +601,41 @@ class DocumentsPage:
             if st.button("Generate In-Depth Conversation", type="secondary"):
                 with st.spinner("Generating podcast... This may take several minutes."):
                     try:
-                        audio_file = sync_create_podcast(
+                        # Generate the podcast audio
+                        temp_audio_file = sync_create_podcast(
                             results["md_content"], config=podcast_config
                         )
-                        st.success("Podcast generated successfully!")
-
-                        # Display audio player
-                        st.markdown("#### Generated Podcast")
-                        if os.path.exists(audio_file):
-                            with open(audio_file, "rb") as f:
-                                audio_bytes = f.read()
-                            os.remove(audio_file)
-                            st.audio(audio_bytes, format="audio/mp3")
+                        
+                        # Get the original document name
+                        original_document_name = results.get("original_document_name", "unknown_document")
+                        
+                        # Save the audio file using the audio processor
+                        audio_result = self.audio_processor.process_podcast_audio(
+                            temp_audio_file,
+                            original_document_name,
+                            handle_duplicates="rename"
+                        )
+                        
+                        if audio_result.get("error"):
+                            st.error(f"Failed to save audio file: {audio_result['message']}")
                         else:
-                            st.error("Audio file not found.")
+                            st.success("Podcast generated and saved successfully!")
+                            
+                            # Display audio player
+                            st.markdown("#### Generated Podcast")
+                            audio_path = audio_result["path"]
+                            
+                            if os.path.exists(audio_path):
+                                with open(audio_path, "rb") as f:
+                                    audio_bytes = f.read()
+                                st.audio(audio_bytes, format="audio/mp3")
+                                
+                                # Show file information
+                                st.info(f"**Saved as:** {audio_result['filename']}")
+                                st.info(f"**Location:** {audio_path}")
+                                st.info(f"**Size:** {audio_result['size_bytes']} bytes")
+                            else:
+                                st.error("Audio file not found after saving.")
 
                     except Exception as e:
                         st.error(f"Error generating podcast: {str(e)}")
@@ -642,6 +655,7 @@ class DocumentsPage:
                     "q_and_a": q_and_a,
                     "bullet_points": bullet_points,
                     "mind_map": mind_map,
+                    "original_document_name": uploaded_file.name,
                 }
                 st.success("Document processed successfully!")
             except Exception as e:
