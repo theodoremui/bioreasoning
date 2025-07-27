@@ -386,8 +386,8 @@ The following environment variables control infrastructure behavior:
 
 ```bash
 # Database Configuration
-pgql_user=llama                    # PostgreSQL username
-pgql_psw=Salesforce1              # PostgreSQL password  
+pgql_user=llama                   # PostgreSQL username
+pgql_psw=S*********1              # PostgreSQL password  
 pgql_db=notebookllama             # PostgreSQL database name
 
 # Observability Configuration
