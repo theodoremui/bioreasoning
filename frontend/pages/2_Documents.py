@@ -65,16 +65,30 @@ OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
 instrumentor = None
 if ENABLE_OBSERVABILITY:
     try:
-        # define a custom span exporter
-        span_exporter = OTLPSpanExporter(OTLP_ENDPOINT)
-        
-        # initialize the instrumentation object
-        instrumentor = LlamaIndexOpenTelemetry(
-            service_name_or_resource="agent.traces",
-            span_exporter=span_exporter,
-            debug=True,
-        )
-        print(f"✅ OpenTelemetry initialized with endpoint: {OTLP_ENDPOINT}")
+        # Test if the OpenTelemetry endpoint is reachable before initializing
+        import requests
+        health_url = OTLP_ENDPOINT.replace("/v1/traces", "/health")
+        try:
+            response = requests.get(health_url, timeout=2)
+            if response.status_code == 200:
+                # define a custom span exporter
+                span_exporter = OTLPSpanExporter(OTLP_ENDPOINT)
+                
+                # initialize the instrumentation object
+                instrumentor = LlamaIndexOpenTelemetry(
+                    service_name_or_resource="agent.traces",
+                    span_exporter=span_exporter,
+                    debug=True,
+                )
+                print(f"✅ OpenTelemetry initialized with endpoint: {OTLP_ENDPOINT}")
+            else:
+                print(f"⚠️  OpenTelemetry endpoint not healthy: {response.status_code}")
+                print("📊 Continuing without observability...")
+                instrumentor = None
+        except requests.exceptions.RequestException as req_e:
+            print(f"⚠️  OpenTelemetry endpoint unreachable: {req_e}")
+            print("📊 Continuing without observability...")
+            instrumentor = None
     except Exception as e:
         print(f"⚠️  OpenTelemetry initialization failed: {e}")
         print("📊 Continuing without observability...")
