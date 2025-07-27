@@ -223,3 +223,4 @@ local/
 **/qdrant_storage/**
 #main.py#
 #README.md#
+scripts/test-infrastructure.py
