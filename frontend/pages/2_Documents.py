@@ -67,9 +67,11 @@ if ENABLE_OBSERVABILITY:
     try:
         # Test if the OpenTelemetry endpoint is reachable before initializing
         import requests
-        health_url = OTLP_ENDPOINT.replace("/v1/traces", "/health")
+        # For Jaeger all-in-one, test the main Jaeger API endpoint instead
+        # since the OTLP collector doesn't expose a health endpoint
+        jaeger_health_url = "http://localhost:16686/api/services"
         try:
-            response = requests.get(health_url, timeout=2)
+            response = requests.get(jaeger_health_url, timeout=2)
             if response.status_code == 200:
                 # define a custom span exporter
                 span_exporter = OTLPSpanExporter(OTLP_ENDPOINT)
@@ -81,12 +83,13 @@ if ENABLE_OBSERVABILITY:
                     debug=True,
                 )
                 print(f"✅ OpenTelemetry initialized with endpoint: {OTLP_ENDPOINT}")
+                print(f"✅ Jaeger UI available at: http://localhost:16686")
             else:
-                print(f"⚠️  OpenTelemetry endpoint not healthy: {response.status_code}")
+                print(f"⚠️  Jaeger endpoint not healthy: {response.status_code}")
                 print("📊 Continuing without observability...")
                 instrumentor = None
         except requests.exceptions.RequestException as req_e:
-            print(f"⚠️  OpenTelemetry endpoint unreachable: {req_e}")
+            print(f"⚠️  Jaeger endpoint unreachable: {req_e}")
             print("📊 Continuing without observability...")
             instrumentor = None
     except Exception as e:

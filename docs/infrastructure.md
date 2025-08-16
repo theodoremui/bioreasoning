@@ -133,13 +133,18 @@ jaeger:
 # In frontend/pages/2_Documents.py
 OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
 
-# Initialize OpenTelemetry
-span_exporter = OTLPSpanExporter(OTLP_ENDPOINT)
-instrumentor = LlamaIndexOpenTelemetry(
-    service_name_or_resource="agent.traces",
-    span_exporter=span_exporter,
-    debug=True,
-)
+# Health check using Jaeger API (OTLP collector doesn't expose /health)
+jaeger_health_url = "http://localhost:16686/api/services"
+response = requests.get(jaeger_health_url, timeout=2)
+
+if response.status_code == 200:
+    # Initialize OpenTelemetry
+    span_exporter = OTLPSpanExporter(OTLP_ENDPOINT)
+    instrumentor = LlamaIndexOpenTelemetry(
+        service_name_or_resource="agent.traces",
+        span_exporter=span_exporter,
+        debug=True,
+    )
 ```
 
 ### 4. Adminer
@@ -234,8 +239,8 @@ OTLP_ENDPOINT=http://custom-host:4318/v1/traces
    # Check PostgreSQL
    docker-compose exec postgres pg_isready -U llama -d notebookllama
    
-   # Check Jaeger
-   curl http://localhost:16686/api/services
+   # Check Jaeger (this is also used by the application for health checks)
+curl http://localhost:16686/api/services
    
    # Check Adminer
    curl http://localhost:8080
@@ -385,8 +390,8 @@ curl http://localhost:16686/api/services
 # Check Jaeger logs
 docker-compose logs jaeger
 
-# Test OTLP endpoint
-curl http://localhost:4318/health
+# Test Jaeger API (used for health checks since OTLP doesn't expose /health)
+curl http://localhost:16686/api/services
 ```
 
 **Solutions**:
