@@ -15,12 +15,14 @@ class TestAgentRouteType:
         assert AgentRouteType.BIOMCP.value == "biomcp"
         assert AgentRouteType.CHITCHAT.value == "chitchat"
         assert AgentRouteType.WEBSEARCH.value == "websearch"
+        assert AgentRouteType.LLAMAMCP.value == "llamamcp"
+        assert AgentRouteType.LLAMARAG.value == "llamarag"
         assert AgentRouteType.CONCIERGE.value == "concierge"
         assert AgentRouteType.REASONING.value == "reasoning"
     
     def test_agent_route_enum_members(self):
         """Test that all expected enum members exist."""
-        expected_members = {"BIOMCP", "CHITCHAT", "WEBSEARCH", "CONCIERGE", "REASONING"}
+        expected_members = {"BIOMCP", "CHITCHAT", "WEBSEARCH", "LLAMAMCP", "LLAMARAG", "CONCIERGE", "REASONING"}
         actual_members = {member.name for member in AgentRouteType}
         assert actual_members == expected_members
 

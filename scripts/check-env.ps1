@@ -275,8 +275,8 @@ function Test-EnvironmentStatus {
         Write-Host "      - ElevenLabs: https://elevenlabs.io/speech-synthesis"
     } else {
         Write-Host "   1. Start the infrastructure: .\scripts\start-infrastructure.ps1"
-        Write-Host "   2. Start the MCP server: .\scripts\run-knowledge-server.ps1"
-        Write-Host "   3. Start the Streamlit client: .\scripts\run-knowledge-client.ps1"
+        Write-Host "   2. Start the MCP server: .\scripts\run-docs-server.ps1"
+        Write-Host "   3. Start the Streamlit client: .\scripts\run-docs-client.ps1"
         Write-Host "   4. Upload a document and try podcast generation!"
     }
     

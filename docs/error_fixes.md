@@ -105,19 +105,19 @@ sudo apt update && sudo apt install ffmpeg
 1. **Start the MCP Knowledge Server** (port 8131):
 ```bash
 # Windows
-.\scripts\run-knowledge-server.ps1
+.\scripts\run-docs-server.ps1
 
 # Unix/macOS
-./scripts/run-knowledge-server.sh
+./scripts/run-docs-server.sh
 ```
 
 2. **Start the Streamlit Client** (port 8501):
 ```bash
 # Windows
-.\scripts\run-knowledge-client.ps1
+.\scripts\run-docs-client.ps1
 
 # Unix/macOS
-./scripts/run-knowledge-client.sh
+./scripts/run-docs-client.sh
 ```
 
 ## Verification Steps
@@ -193,7 +193,7 @@ To prevent these issues in the future:
 - `docs/error_fixes.md` - This documentation
 
 **Scripts** (already existed):
-- `scripts/run-knowledge-server.ps1` - Windows MCP server
-- `scripts/run-knowledge-server.sh` - Unix MCP server
-- `scripts/run-knowledge-client.ps1` - Windows Streamlit client
-- `scripts/run-knowledge-client.sh` - Unix Streamlit client 
+- `scripts/run-docs-server.ps1` - Windows MCP server
+- `scripts/run-docs-server.sh` - Unix MCP server
+- `scripts/run-docs-client.ps1` - Windows Streamlit client
+- `scripts/run-docs-client.sh` - Unix Streamlit client 

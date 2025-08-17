@@ -25,10 +25,10 @@ python scripts/test-infrastructure.py
 ### 4. Start Application
 ```bash
 # Terminal 1: MCP Server
-./scripts/run-knowledge-server.sh
+./scripts/run-docs-server.sh
 
 # Terminal 2: Streamlit Client
-./scripts/run-knowledge-client.sh
+./scripts/run-docs-client.sh
 ```
 
 ## 📊 Service Overview

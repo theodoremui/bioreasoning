@@ -14,6 +14,11 @@ load_dotenv(find_dotenv())
 from abc import ABC, abstractmethod
 import asyncio
 from agents import Runner, RunResult, gen_trace_id, trace
+try:
+    from agents.tracing import set_tracing_disabled
+    set_tracing_disabled(True)  # Disable external tracing by default to avoid runtime teardown issues
+except Exception:
+    pass
 from loguru import logger
 
 from bioagents.models.citation import Citation
@@ -66,19 +71,14 @@ class BaseAgent(ABC):
         
         try:
             trace_id = gen_trace_id()
-            with trace(workflow_name="BaseAgent", trace_id=trace_id):
-                result = await asyncio.wait_for(
-                    Runner.run(
-                        starting_agent=self._agent,
-                        input=query_str,
-                        max_turns=3,
-                    ),
-                    timeout=self.timeout
-                )
-                    
-                logger.info(f"{self.name}: {query_str} -> {trace_id}")
-                return self._construct_response(result, "", AgentRouteType.REASONING)
-                            
+            # Avoid context managers that may hook task groups on close; log trace id explicitly
+            result = await Runner.run(
+                starting_agent=self._agent,
+                input=query_str,
+                max_turns=3,
+            )
+            logger.info(f"{self.name}: {query_str} -> {trace_id}")
+            return self._construct_response(result, "", AgentRouteType.REASONING)
         except Exception as e:
             logger.error(f"achat: {str(e)}")
             raise e

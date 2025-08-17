@@ -57,6 +57,26 @@ from bioagents.agents.common import AgentResponse, AgentRouteType
 from bioagents.agents.base_agent import BaseAgent
 from bioagents.models.llms import LLM
 
+
+INSTRUCTIONS = f"""
+You are a biomedical research assistant. Use the available biomedical tools 
+to answer questions about genetic variants, research articles, and biomedical data. 
+Be helpful, accurate, and informative in your responses. 
+When using tools, provide clear explanations of the results and their significance. 
+If a biomedical query takes time, be patient as external databases may be slow.
+You should always directly answer the user's question, without asking for permission, 
+any preambles.
+Your response should include relevant citation information from the source documents.\n
+
+## Response Instructions:
+- Prepend the response with '[BioMCP]'"
+"""
+
+HANDOFF_DESCRIPTION = (
+    "Use this subagent to answer questions about genetic variants, research articles, and biomedical data. "
+)
+
+
 class BioMCPAgentError(Exception):
     """Base exception for BioMCPAgent errors."""
     pass
@@ -275,7 +295,7 @@ class BioMCPAgent(BaseAgent):
         )
     
     async def _create_connection(self) -> MCPServerStreamableHttp:
-        """Establish connection to the MCP server."""
+        """Establish connection to the MCP server with robust teardown."""
         try:
             from datetime import timedelta
             
@@ -285,6 +305,8 @@ class BioMCPAgent(BaseAgent):
                     "url": self._mcp_endpoint,
                     "timeout": timedelta(seconds=self.timeout),  # HTTP request timeout
                     "sse_read_timeout": timedelta(seconds=self.timeout),  # SSE read timeout
+                    # Avoid aggressive termination to reduce generator teardown noise
+                    "terminate_on_close": False,
                 },
                 client_session_timeout_seconds=self.timeout,  # MCP session timeout
             )
@@ -297,18 +319,8 @@ class BioMCPAgent(BaseAgent):
         """Create and configure the biomedical agent."""
         return Agent(
             name="BiomedicalAssistant",
-            instructions=(
-                "You are a biomedical research assistant. Use the available biomedical tools "
-                "to answer questions about genetic variants, research articles, and biomedical data. "
-                "Be helpful, accurate, and informative in your responses. When using tools, "
-                "provide clear explanations of the results and their significance. "
-                "If a biomedical query takes time, be patient as external databases may be slow."
-                "\n## Response Instructions:\n"
-                "- Prepend the response with '[BioMCP]'\n"
-            ),
-            handoff_description=(
-                "Use this subagent to answer questions about genetic variants, research articles, and biomedical data. "
-            ),
+            instructions=INSTRUCTIONS,
+            handoff_description=HANDOFF_DESCRIPTION,
             handoffs=[],
             mcp_servers=[mcp_server],
             model_settings=ModelSettings(tool_choice="required"),
@@ -482,7 +494,8 @@ class BioMCPAgent(BaseAgent):
         try:
             trace_id = gen_trace_id()            
             with trace(workflow_name="Biomedical Query", trace_id=trace_id):
-                async with await self._create_connection() as mcp_server:
+                mcp_server = await self._create_connection()
+                try:
                     if self._agent is None:
                         self._agent = self._create_agent(mcp_server)
                     else:
@@ -496,6 +509,11 @@ class BioMCPAgent(BaseAgent):
                         ),
                         timeout=self.timeout
                     )
+                finally:
+                    try:
+                        await mcp_server.__aexit__(None, None, None)
+                    except Exception:
+                        pass
                     
                 logger.info(f"Query completed successfully. Trace ID: {trace_id}")
                 return self._construct_response(result, "", AgentRouteType.BIOMCP)

@@ -327,7 +327,7 @@ function Main {
         Write-Host ""
         Write-Host "📝 Next Steps:" -ForegroundColor Cyan
         if ($status.OpenAIOK -and $status.ElevenLabsOK) {
-            Write-Host "1. Start the application: .\scripts\run-knowledge-client.ps1"
+            Write-Host "1. Start the application: .\scripts\run-docs-client.ps1"
             Write-Host "2. Upload a document in the Documents page"
             Write-Host "3. Use the 'Generate In-Depth Conversation' button"
         } else {
@@ -386,8 +386,8 @@ function Main {
     Write-Host "📝 Next Steps:" -ForegroundColor Cyan
     if ($finalStatus.OpenAIOK -and $finalStatus.ElevenLabsOK) {
         Write-Host "1. Start the infrastructure: .\scripts\start-infrastructure.ps1"
-        Write-Host "2. Start the MCP server: .\scripts\run-knowledge-server.ps1"
-        Write-Host "3. Start the Streamlit client: .\scripts\run-knowledge-client.ps1"
+        Write-Host "2. Start the MCP server: .\scripts\run-docs-server.ps1"
+        Write-Host "3. Start the Streamlit client: .\scripts\run-docs-client.ps1"
         Write-Host "4. Upload a document in the Documents page"
         Write-Host "5. Use the 'Generate In-Depth Conversation' button"
     } else {

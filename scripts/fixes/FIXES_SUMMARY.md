@@ -37,19 +37,19 @@ winget install ffmpeg
 ### 1. Start the MCP Knowledge Server
 ```bash
 # Windows
-.\scripts\run-knowledge-server.ps1
+.\scripts\run-docs-server.ps1
 
 # Unix/macOS  
-./scripts/run-knowledge-server.sh
+./scripts/run-docs-server.sh
 ```
 
 ### 2. Start the Streamlit Client
 ```bash
 # Windows
-.\scripts\run-knowledge-client.ps1
+.\scripts\run-docs-client.ps1
 
 # Unix/macOS
-./scripts/run-knowledge-client.sh
+./scripts/run-docs-client.sh
 ```
 
 ### 3. Test the System

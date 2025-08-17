@@ -121,7 +121,7 @@ if not openai_ok or not elevenlabs_ok:
     print('      - OpenAI: https://platform.openai.com/api-keys')
     print('      - ElevenLabs: https://elevenlabs.io/speech-synthesis')
 else:
-    print('   1. Run ./scripts/run-knowledge-client.sh to start the application')
+    print('   1. Run ./scripts/run-docs-client.sh to start the application')
     print('   2. Upload a document and try podcast generation!')
 " 2>/dev/null
 

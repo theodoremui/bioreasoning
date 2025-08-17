@@ -2,6 +2,8 @@
 Tests for bioagents.agents.bio_concierge module.
 """
 
+
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from bioagents.agents.bio_concierge import BioConciergeAgent
@@ -24,9 +26,11 @@ class TestBioConciergeAgent:
         agent = BioConciergeAgent(name="TestConcierge")
         
         assert agent.name == "TestConcierge"
-        assert agent.model_name == LLM.GPT_4_1_NANO
+        assert agent.model_name == LLM.GPT_4_1_MINI
         assert "bio-reasoning agent" in agent.instructions
+        asyncio.run(agent.start())
         assert agent._agent is not None
+        asyncio.run(agent.stop())
     
     def test_bio_concierge_creation_custom_model(self):
         """Test creating BioConciergeAgent with custom model."""
@@ -39,10 +43,12 @@ class TestBioConciergeAgent:
         agent = BioConciergeAgent(name="TestConcierge")
         
         # Check that the agent was created
+        asyncio.run(agent.start())
         assert agent._agent is not None
         assert agent._agent.name == "Bio Concierge"
-        assert agent._agent.model == LLM.GPT_4_1_NANO
-        assert len(agent._agent.handoffs) == 3  # Three sub-agents
+        assert agent._agent.model == LLM.GPT_4_1_MINI
+        assert len(agent._agent.handoffs) == 4  # Four sub-agents
+        asyncio.run(agent.stop())
     
     @patch('bioagents.agents.bio_concierge.BioMCPAgent')
     @patch('bioagents.agents.bio_concierge.WebReasoningAgent') 
@@ -199,13 +205,12 @@ class TestBioConciergeAgent:
         assert isinstance(result.citations, list)
     
     @pytest.mark.asyncio
-    async def test_achat_no_agent_error(self):
-        """Test achat raises error when agent is not initialized."""
+    async def test_achat_lazy_initializes_agent(self):
+        """achat() should lazily initialize concierge handoffs if _agent is None."""
         agent = BioConciergeAgent(name="TestConcierge")
-        agent._agent = None
-        
-        with pytest.raises(ValueError, match="Agent not initialized"):
-            await agent.achat("Test query")
+        agent._agent = None  # simulate uninitialized
+        result = await agent.achat("Test query")
+        assert isinstance(result, AgentResponse)
     
     # Keep the timeout test as a controlled (mocked) test
     @patch('bioagents.agents.bio_concierge.BioMCPAgent')
