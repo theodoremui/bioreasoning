@@ -7,12 +7,13 @@ load_dotenv()
 from mcp.server.fastmcp import FastMCP
 from typing import List, Union, Literal
 
-from bioagents.knowledge.querying import query_index
-from bioagents.knowledge.processing import process_file
-from bioagents.knowledge.mindmap import get_mind_map
+from bioagents.docs.querying import query_index
+from bioagents.docs.processing import process_file
+from bioagents.docs.mindmap import get_mind_map
 
 mcp: FastMCP = FastMCP(name="MCP For NotebookLM")
-mcp.settings.port = os.environ.get("BIOMCP_PORT", 8131)
+mcp.settings.port = int(os.getenv("BIOMCP_PORT", "8131"))
+mcp.settings.host = "localhost"
 
 @mcp.tool(
     name="process_file_tool",
@@ -39,7 +40,7 @@ async def get_mind_map_tool(
     return mind_map_fl
 
 
-@mcp.tool(name="query_index_tool", description="Query a LlamaCloud index.")
+@mcp.tool(name="query_index_tool", description="Get knowledge from ingested documents in LlamaCloud index.")
 async def query_index_tool(question: str) -> str:
     response = await query_index(question=question)
     if response is None:

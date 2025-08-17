@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 # Add the bioagents directory to the path for imports
 sys.path.append('../bioagents')
 
-from bioagents.utils.async_utils import run_async_in_streamlit, create_async_wrapper
+from bioagents.utils.async_utils import run_async, create_async_wrapper
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def sample_async_function():
 
 def test_run_async_in_streamlit_basic(sample_async_function):
     """Test basic async execution."""
-    result = run_async_in_streamlit(sample_async_function(5))
+    result = run_async(sample_async_function(5))
     assert result == 10
 
 
@@ -36,7 +36,7 @@ def test_run_async_in_streamlit_with_existing_loop(sample_async_function):
     asyncio.set_event_loop(loop)
     
     try:
-        result = run_async_in_streamlit(sample_async_function(3))
+        result = run_async(sample_async_function(3))
         assert result == 6
     finally:
         loop.close()
@@ -59,7 +59,7 @@ def test_run_async_in_streamlit_with_running_loop(sample_async_function):
             mock_future.result.return_value = 8
             mock_context.submit.return_value = mock_future
             
-            result = run_async_in_streamlit(sample_async_function(4))
+            result = run_async(sample_async_function(4))
             assert result == 8
 
 
@@ -67,7 +67,7 @@ def test_run_async_in_streamlit_with_runtime_error(sample_async_function):
     """Test async execution when no event loop exists."""
     # Mock get_event_loop to raise RuntimeError
     with patch('asyncio.get_event_loop', side_effect=RuntimeError("No event loop")):
-        result = run_async_in_streamlit(sample_async_function(6))
+        result = run_async(sample_async_function(6))
         assert result == 12
 
 
@@ -87,7 +87,7 @@ def test_run_async_in_streamlit_with_exception():
         raise ValueError("Test error")
     
     with pytest.raises(ValueError, match="Test error"):
-        run_async_in_streamlit(failing_func())
+        run_async(failing_func())
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific test")
@@ -97,7 +97,7 @@ def test_run_async_in_streamlit_windows():
         await asyncio.sleep(0.01)
         return "windows_test"
     
-    result = run_async_in_streamlit(sample_func())
+    result = run_async(sample_func())
     assert result == "windows_test"
 
 

@@ -169,8 +169,8 @@ show_service_info() {
     echo "Next Steps:"
     echo "==========="
     echo "1. Set up your .env file with API keys"
-    echo "2. Start the MCP server: ./scripts/run-knowledge-server.sh"
-    echo "3. Start the Streamlit client: ./scripts/run-knowledge-client.sh"
+    echo "2. Start the MCP server: ./scripts/run-docs-server.sh"
+    echo "3. Start the Streamlit client: ./scripts/run-docs-client.sh"
     echo
 }
 

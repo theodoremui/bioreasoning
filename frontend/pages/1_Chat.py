@@ -21,7 +21,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from components.model_selector import ModelSelector
 from components.session_manager import SessionManager
 from bioagents.agents.common import AgentResponse
-from bioagents.utils.async_utils import run_async_in_streamlit
+from bioagents.utils.async_utils import run_async
 
 
 class ChatPage:
@@ -109,11 +109,10 @@ class ChatPage:
         """
         with st.expander("📚 Citations", expanded=False):
             for i, citation in enumerate(citations):
-                st.markdown(f"**{i+1}.** [{citation.title}]({citation.url})")
+                render_text = f"**{i+1}.** [{citation.title}]({citation.url}) "
                 if hasattr(citation, 'snippet') and citation.snippet:
-                    st.markdown(f"*{citation.snippet}*")
-                if i < len(citations) - 1:  # Add separator except for last citation
-                    st.markdown("---")
+                    render_text += f"*{citation.snippet}*"
+                st.markdown(render_text)
     
     def _handle_user_input(self) -> None:
         """Handle new user input and generate assistant response."""
@@ -140,7 +139,7 @@ class ChatPage:
                 try:
                     # Get the reasoner and generate response
                     reasoner = SessionManager.get_reasoner()
-                    agent_response: AgentResponse = run_async_in_streamlit(reasoner.achat(prompt))
+                    agent_response: AgentResponse = run_async(reasoner.achat(prompt))
                     
                     # Display the response
                     st.write(agent_response.response_str)

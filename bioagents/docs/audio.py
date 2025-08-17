@@ -5,13 +5,19 @@ from dotenv import load_dotenv
 import logging
 from contextlib import asynccontextmanager
 
-from pydub import AudioSegment
+try:
+    from pydub import AudioSegment
+except Exception:  # pragma: no cover - optional dependency for tests without audio toolchain
+    AudioSegment = None  # type: ignore[assignment]
 from llama_index.core.llms.structured_llm import StructuredLLM
 from typing_extensions import Self
 from typing import Union, Optional, List, AsyncIterator, Literal
 from pydantic import BaseModel, ConfigDict, model_validator, Field
 from llama_index.core.llms import ChatMessage
-from llama_index.llms.openai import OpenAIResponses
+try:
+    from llama_index.llms.openai import OpenAIResponses
+except Exception:  # pragma: no cover - optional dependency in some environments
+    OpenAIResponses = None  # type: ignore[assignment]
 
 from bioagents.utils import (
     RobustElevenLabsClient,
@@ -426,6 +432,10 @@ class PodcastGenerator(BaseModel):
         async with self._cleanup_files(files):
             try:
                 logger.info("Generating audio for conversation")
+                if AudioSegment is None:
+                    raise AudioGenerationError(
+                        "pydub is not installed. Install 'pydub' and an ffmpeg backend to generate audio."
+                    )
 
                 for i, turn in enumerate(conversation.conversation):
                     voice_id = (
@@ -440,10 +450,10 @@ class PodcastGenerator(BaseModel):
 
                 logger.info("Combining audio files...")
                 output_path = f"conversation_{str(uuid.uuid4())}.mp3"
-                combined_audio: AudioSegment = AudioSegment.empty()
+                combined_audio: AudioSegment = AudioSegment.empty()  # type: ignore[call-arg]
 
                 for file_path in files:
-                    audio = AudioSegment.from_file(file_path)
+                    audio = AudioSegment.from_file(file_path)  # type: ignore[call-arg]
                     combined_audio += audio
 
                 combined_audio.export(
@@ -509,9 +519,11 @@ try:
         PODCAST_GEN = None
     else:
         # Create structured LLM
+        if OpenAIResponses is None:
+            raise RuntimeError("llama_index OpenAIResponses not available")
         SLLM = OpenAIResponses(
-            model="gpt-4.1", 
-            api_key=openai_key
+            model="gpt-4.1",
+            api_key=openai_key,
         ).as_structured_llm(MultiTurnConversation)
         
         # Determine which client to use

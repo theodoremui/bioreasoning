@@ -580,10 +580,10 @@ services:
 2. **Run Application**:
    ```bash
    # Terminal 1: Start MCP server
-   ./scripts/run-knowledge-server.sh
+   ./scripts/run-docs-server.sh
    
    # Terminal 2: Start Streamlit client
-   ./scripts/run-knowledge-client.sh
+   ./scripts/run-docs-client.sh
    ```
 
 3. **Monitor with Jaeger**:

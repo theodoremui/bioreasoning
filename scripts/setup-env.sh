@@ -66,7 +66,7 @@ fi
 
 echo ""
 echo "📝 Next Steps:"
-echo "1. Run the application: ./scripts/run-knowledge-client.sh"
+echo "1. Run the application: ./scripts/run-docs-client.sh"
 echo "2. Upload a document in the Documents page"
 echo "3. Use the 'Generate In-Depth Conversation' button"
 echo ""

@@ -13,7 +13,7 @@ from typing import Any, Callable, Coroutine
 import concurrent.futures
 
 
-def run_async_in_streamlit(coro: Coroutine[Any, Any, Any]) -> Any:
+def run_async(coro: Coroutine[Any, Any, Any]) -> Any:
     """
     Run an async coroutine in a Streamlit-compatible way.
     
@@ -70,6 +70,6 @@ def create_async_wrapper(async_func: Callable[..., Coroutine[Any, Any, Any]]):
     
     def sync_wrapper(*args, **kwargs):
         """Synchronous wrapper that calls the async function."""
-        return run_async_in_streamlit(async_func(*args, **kwargs))
+        return run_async(async_func(*args, **kwargs))
     
     return sync_wrapper 

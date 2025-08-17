@@ -7,7 +7,7 @@ This guide covers common issues and solutions for running and using the BioReaso
 ## 1. Server/Client Startup Issues
 
 **Q: The web app says it can't connect to the server.**
-- **A:** Make sure you have started BOTH the Knowledge Server (`./run-knowledge-server.sh`) and the Knowledge Client (`./run-knowledge-client.sh`) in separate terminals.
+- **A:** Make sure you have started BOTH the Knowledge Server (`./run-docs-server.sh`) and the Knowledge Client (`./run-docs-client.sh`) in separate terminals.
 
 **Q: Port is already in use.**
 - **A:**

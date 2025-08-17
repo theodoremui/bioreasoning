@@ -285,8 +285,8 @@ function Show-ServiceInfo {
     Write-Host "Next Steps:" -ForegroundColor Cyan
     Write-Host "===========" -ForegroundColor Cyan
     Write-Host "1. Set up your .env file with API keys: .\scripts\setup-env.ps1"
-    Write-Host "2. Start the MCP server: .\scripts\run-knowledge-server.ps1"
-    Write-Host "3. Start the Streamlit client: .\scripts\run-knowledge-client.ps1"
+    Write-Host "2. Start the MCP server: .\scripts\run-docs-server.ps1"
+    Write-Host "3. Start the Streamlit client: .\scripts\run-docs-client.ps1"
     Write-Host ""
 }
 

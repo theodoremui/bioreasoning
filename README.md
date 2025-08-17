@@ -173,7 +173,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 This server handles all document, mindmap, and podcast processing.
 
 ```bash
-./run-knowledge-server.sh
+./run-docs-server.sh
 ```
 - Activates the virtual environment if needed
 - Runs the MCP server (`bioagents/mcp/knowledge_server.py`)
@@ -182,7 +182,7 @@ This server handles all document, mindmap, and podcast processing.
 This is the user-facing web app.
 
 ```bash
-./run-knowledge-client.sh
+./run-docs-client.sh
 ```
 - Activates the virtual environment if needed
 - Installs Streamlit if missing
@@ -449,7 +449,7 @@ docker-compose exec -T postgres psql -U llama notebookllama < backup.sql
 ## Troubleshooting
 
 ### General Issues
-- **Server/Client not running**: Ensure both `run-knowledge-server.sh` and `run-knowledge-client.sh` are running in separate terminals
+- **Server/Client not running**: Ensure both `run-docs-server.sh` and `run-docs-client.sh` are running in separate terminals
 - **Port conflicts**: Default ports are 8501 (client) and 8131 (server); change if needed
 - **Missing dependencies**: Run `uv sync` and ensure your virtual environment is activated
 - **API key issues**: Check your `.env` file and ensure `OPENAI_API_KEY` is set
@@ -503,8 +503,8 @@ bioreasoning/
 ├── frontend/              # Streamlit frontend
 │   ├── app.py             # Main entry point
 │   └── pages/             # Multi-page app modules
-├── run-knowledge-server.sh
-├── run-knowledge-client.sh
+├── run-docs-server.sh
+├── run-docs-client.sh
 ├── pyproject.toml         # Dependencies and project config
 └── README.md
 ```

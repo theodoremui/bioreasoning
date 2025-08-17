@@ -31,7 +31,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from components.session_manager import SessionManager
 from bioagents.models.file_info import FileInfo
-from bioagents.utils.async_utils import run_async_in_streamlit
+from bioagents.utils.async_utils import run_async
 from bioagents.utils.audio_manager import AudioFileProcessor
 
 
@@ -110,9 +110,9 @@ sql_engine = OtelTracesSqlEngine(
 #------------------------------------------------
 # NotebookLM Workflow
 #------------------------------------------------
-from bioagents.knowledge.documents import ManagedDocument, DocumentManager
-from bioagents.knowledge.audio import PODCAST_GEN, PodcastConfig
-from bioagents.knowledge.workflow import NotebookLMWorkflow, FileInputEvent, NotebookOutputEvent
+from bioagents.docs.documents import ManagedDocument, DocumentManager
+from bioagents.docs.audio import PODCAST_GEN, PodcastConfig
+from bioagents.docs.workflow import NotebookLMWorkflow, FileInputEvent, NotebookOutputEvent
 
 document_manager = DocumentManager(engine_url=engine_url)
 
@@ -182,7 +182,7 @@ async def run_workflow(
 
 def sync_run_workflow(file: io.BytesIO, document_title: str):
     """Synchronous wrapper for workflow execution that handles event loop properly."""
-    return run_async_in_streamlit(run_workflow(file, document_title))
+    return run_async(run_workflow(file, document_title))
 
 
 async def create_podcast(file_content: str, config: PodcastConfig = None):
@@ -199,7 +199,7 @@ async def create_podcast(file_content: str, config: PodcastConfig = None):
 
 def sync_create_podcast(file_content: str, config: PodcastConfig = None):
     """Synchronous wrapper for podcast creation that handles event loop properly."""
-    return run_async_in_streamlit(create_podcast(file_content=file_content, config=config))
+    return run_async(create_podcast(file_content=file_content, config=config))
 
 #------------------------------------------------
 # Initialize Session State

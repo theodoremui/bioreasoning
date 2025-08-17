@@ -441,7 +441,7 @@ async def test_check_api_connection_function():
 @pytest.mark.asyncio
 async def test_podcast_generator_client_types():
     """Test PodcastGenerator with different client types."""
-    from bioagents.knowledge.audio import PodcastGenerator, MultiTurnConversation
+    from bioagents.docs.audio import PodcastGenerator, MultiTurnConversation
     
     # Create a simple test that doesn't require complex mocking
     # Test that the client type validation works correctly
@@ -468,7 +468,7 @@ async def test_podcast_generator_validation():
     # (We'll test the actual validation in integration tests)
     
     # Test that the validation logic exists
-    from bioagents.knowledge.audio import PodcastGenerator
+    from bioagents.docs.audio import PodcastGenerator
     
     # The validation should check for these client types
     valid_client_types = (RobustOpenAIClient, RobustElevenLabsClient)

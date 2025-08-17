@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "biomcp-python>=0.1.10",
     "elevenlabs>=2.7.1",
+    "fastapi>=0.116.1",
     "llama-cloud-services>=0.6.50",
     "llama-index-indices-managed-llama-cloud>=0.6.11",
     "llama-index-llms-openai>=0.4.7",
@@ -24,6 +25,7 @@ dependencies = [
     "pytest-asyncio>=0.24.0",
     "python-dotenv>=1.1.0",
     "pyvis>=0.3.2",
+    "qdrant-client>=1.15.1",
     "randomname>=0.2.1",
     "streamlit>=1.44.1",
     "watchdog>=6.0.0",

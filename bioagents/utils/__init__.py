@@ -14,7 +14,7 @@ This package contains utility modules for the BioAgents system, including
 retry logic, error handling, and other common utilities.
 """
 
-from .async_utils import run_async_in_streamlit, create_async_wrapper
+from .async_utils import run_async, create_async_wrapper
 
 
 # Always import retry utilities (core functionality)
@@ -113,7 +113,7 @@ from .audio_manager import AudioFileManager, AudioFileProcessor, AudioFileError
 
 __all__ = [
     # Async utilities
-    "run_async_in_streamlit", 
+    "run_async", 
     "create_async_wrapper",
     # Audio management
     "AudioFileManager",
