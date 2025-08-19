@@ -1,0 +1,24 @@
+Screen {
+    align: center top;
+    padding: 1 4;
+}
+
+.form-title {
+    align: center top;
+    content-align: center middle;
+    width: 100%;
+    color: rgb(83, 200, 0);
+    padding: 1;
+}
+
+.form-control {
+    align: center middle;
+    width: 100%;
+    height: auto;
+    margin: 1;
+}
+
+Input, Select {
+    width: 80;
+    margin: 1;
+}

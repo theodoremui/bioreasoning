@@ -23,4 +23,4 @@ Set-Location (Split-Path -Parent $PSScriptRoot)
 
 # Run the MCP server
 Write-Host "Starting MCP server..." -ForegroundColor Cyan
-uv run bioagents/mcp/knowledge_server.py 
+uv run bioagents/mcp/docs_server.py 

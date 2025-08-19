@@ -1,4 +1,4 @@
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import pandas as pd
 import json
 import os
@@ -13,19 +13,25 @@ from llama_cloud.client import AsyncLlamaCloud
 from typing_extensions import override
 from typing import List, Tuple, Union, Optional, Dict
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
-if (
-    os.getenv("LLAMACLOUD_API_KEY", None)
-    and os.getenv("EXTRACT_AGENT_ID", None)
-    and os.getenv("LLAMACLOUD_PIPELINE_ID", None)
-):
-    CLIENT = AsyncLlamaCloud(token=os.getenv("LLAMACLOUD_API_KEY"))
-    EXTRACT_AGENT = LlamaExtract(api_key=os.getenv("LLAMACLOUD_API_KEY")).get_agent(
-        id=os.getenv("EXTRACT_AGENT_ID")
-    )
-    PARSER = LlamaParse(api_key=os.getenv("LLAMACLOUD_API_KEY"), result_type="markdown")
-    PIPELINE_ID = os.getenv("LLAMACLOUD_PIPELINE_ID")
+LLAMACLOUD_API_KEY = os.getenv("LLAMACLOUD_API_KEY")
+EXTRACT_AGENT_ID = os.getenv("EXTRACT_AGENT_ID")
+LLAMACLOUD_PIPELINE_ID = os.getenv("LLAMACLOUD_PIPELINE_ID")
+
+# Lazily/conditionally initialize external clients so module import does not fail
+CLIENT = AsyncLlamaCloud(token=LLAMACLOUD_API_KEY) if LLAMACLOUD_API_KEY else None  # type: ignore[assignment]
+EXTRACT_AGENT = (
+    LlamaExtract(api_key=LLAMACLOUD_API_KEY).get_agent(id=EXTRACT_AGENT_ID)
+    if LLAMACLOUD_API_KEY and EXTRACT_AGENT_ID
+    else None
+)  # type: ignore[assignment]
+PARSER = (
+    LlamaParse(api_key=LLAMACLOUD_API_KEY, result_type="markdown")
+    if LLAMACLOUD_API_KEY
+    else None
+)  # type: ignore[assignment]
+PIPELINE_ID = LLAMACLOUD_PIPELINE_ID
 
 
 class MarkdownTextAnalyzer(MarkdownAnalyzer):
@@ -94,6 +100,11 @@ async def parse_file(
     images: Optional[List[str]] = None
     text: Optional[str] = None
     tables: Optional[List[pd.DataFrame]] = None
+    # Guard when parser is not configured
+    if PARSER is None:
+        raise RuntimeError(
+            "Document parser is not configured. Set LLAMACLOUD_API_KEY to enable parsing."
+        )
     document = await PARSER.aparse(file_path=file_path)
     md_content = await document.aget_markdown_documents()
     if len(md_content) != 0:
@@ -122,6 +133,20 @@ async def parse_file(
 async def process_file(
     filename: str,
 ) -> Union[Tuple[str, None], Tuple[None, None], Tuple[str, str]]:
+    # Guard when services are not configured
+    if CLIENT is None or EXTRACT_AGENT is None or PIPELINE_ID is None or PARSER is None:
+        missing_vars = []
+        if not LLAMACLOUD_API_KEY:
+            missing_vars.append("LLAMACLOUD_API_KEY")
+        if not EXTRACT_AGENT_ID:
+            missing_vars.append("EXTRACT_AGENT_ID")
+        if not LLAMACLOUD_PIPELINE_ID:
+            missing_vars.append("LLAMACLOUD_PIPELINE_ID")
+        raise RuntimeError(
+            "LlamaCloud is not configured. Missing: "
+            + ", ".join(missing_vars)
+            + ". Set these environment variables and restart the MCP server."
+        )
     with open(filename, "rb") as f:
         file = await CLIENT.files.upload_file(upload_file=f)
     files = [{"file_id": file.id}]

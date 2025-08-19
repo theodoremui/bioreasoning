@@ -1,12 +1,34 @@
 import json
+import os
 
 from workflows import Workflow, step, Context
 from workflows.events import StartEvent, StopEvent, Event
 from workflows.resource import Resource
 from llama_index.tools.mcp import BasicMCPClient
 from typing import Annotated, List, Union
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-MCP_CLIENT = BasicMCPClient(command_or_url="http://localhost:8131/mcp", timeout=120)
+# Allow long-running tools (e.g., LlamaCloud extraction) to complete without client timeout.
+# Configurable via MCP_CLIENT_TIMEOUT env var; default to 900s (15 minutes).
+MCP_CLIENT_TIMEOUT = int(os.getenv("MCP_CLIENT_TIMEOUT", "900"))
+MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8131/mcp")
+MCP_CLIENT = BasicMCPClient(command_or_url=MCP_SERVER_URL, timeout=MCP_CLIENT_TIMEOUT)
+
+# Retry configuration for MCP tool calls
+MCP_CALL_MAX_ATTEMPTS = int(os.getenv("MCP_CALL_MAX_ATTEMPTS", "3"))
+MCP_CALL_BACKOFF_SECONDS = float(os.getenv("MCP_CALL_BACKOFF_SECONDS", "2.0"))
+
+
+@retry(
+    reraise=True,
+    stop=stop_after_attempt(MCP_CALL_MAX_ATTEMPTS),
+    wait=wait_exponential(multiplier=MCP_CALL_BACKOFF_SECONDS),
+    retry=retry_if_exception_type(Exception),
+)
+async def call_mcp_tool_with_retry(
+    mcp_client: BasicMCPClient, *, tool_name: str, arguments: dict
+):
+    return await mcp_client.call_tool(tool_name=tool_name, arguments=arguments)
 
 
 class FileInputEvent(StartEvent):
@@ -46,36 +68,38 @@ class NotebookLMWorkflow(Workflow):
             ev=ev,
         )
         try:
-            result = await mcp_client.call_tool(
-                tool_name="process_file_tool", arguments={"filename": ev.file}
+            result = await call_mcp_tool_with_retry(
+                mcp_client, tool_name="process_file_tool", arguments={"filename": ev.file}
             )
             split_result = result.content[0].text.split("\n%separator%\n")
-            json_data = split_result[0]
-            md_text = split_result[1]
-            if json_data == "Sorry, your file could not be processed.":
-                return NotebookOutputEvent(
-                    mind_map="Unprocessable file, sorry😭",
-                    md_content="",
-                    summary="",
-                    highlights=[],
-                    questions=[],
-                    answers=[],
+            if len(split_result) > 1:
+                json_data = split_result[0]
+                if json_data.startswith("Sorry, your file"):
+                    return NotebookOutputEvent(
+                        mind_map="Unprocessable file, sorry😭",
+                        md_content="",
+                        summary=f"{json_data}",
+                        highlights=[],
+                        questions=[],
+                        answers=[],
+                    )
+                md_text = split_result[1]
+                json_rep = json.loads(json_data)
+                return MindMapCreationEvent(
+                    md_content=md_text,
+                    **json_rep,
                 )
-            json_rep = json.loads(json_data)
-            return MindMapCreationEvent(
-                md_content=md_text,
-                **json_rep,
-            )
         except Exception as e:
             print(f"⚠️  MCP client error: {e}")
-            return NotebookOutputEvent(
-                mind_map="MCP server connection failed. Please ensure the server is running on port 8131.😭",
-                md_content="",
-                summary="",
-                highlights=[],
-                questions=[],
-                answers=[],
-            )
+            
+        return NotebookOutputEvent(
+            mind_map="Ensure MCP server - process_file_tool - is running on port 8131.😭",
+            md_content="",
+            summary="",
+            highlights=[],
+            questions=[],
+            answers=[],
+        )
 
     @step
     async def generate_mind_map(
@@ -88,7 +112,8 @@ class NotebookLMWorkflow(Workflow):
             ev=ev,
         )
         try:
-            result = await mcp_client.call_tool(
+            result = await call_mcp_tool_with_retry(
+                mcp_client,
                 tool_name="get_mind_map_tool",
                 arguments={"summary": ev.summary, "highlights": ev.highlights},
             )

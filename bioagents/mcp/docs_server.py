@@ -22,30 +22,39 @@ mcp.settings.host = "localhost"
 async def process_file_tool(
     filename: str,
 ) -> Union[str, Literal["Sorry, your file could not be processed."]]:
-    notebook_model, text = await process_file(filename=filename)
-    if notebook_model is None:
-        return "Sorry, your file could not be processed."
-    if text is None:
-        text = ""
-    return notebook_model + "\n%separator%\n" + text
+    try:
+        notebook_model, text = await process_file(filename=filename)
+        if notebook_model is None:
+            return "Sorry, your file could not be processed."
+        if text is None:
+            text = ""
+        return notebook_model + "\n%separator%\n" + text
+    except Exception as e:
+        return f"Sorry, your file could not be processed. Reason: {e}"
 
 
 @mcp.tool(name="get_mind_map_tool", description="This tool is useful to get a mind ")
 async def get_mind_map_tool(
     summary: str, highlights: List[str]
 ) -> Union[str, Literal["Sorry, mind map creation failed."]]:
-    mind_map_fl = await get_mind_map(summary=summary, highlights=highlights)
-    if mind_map_fl is None:
-        return "Sorry, mind map creation failed."
-    return mind_map_fl
+    try:
+        mind_map_fl = await get_mind_map(summary=summary, highlights=highlights)
+        if mind_map_fl is None:
+            return "Sorry, mind map creation failed."
+        return mind_map_fl
+    except Exception as e:
+        return f"Sorry, mind map creation failed. Reason: {e}"
 
 
 @mcp.tool(name="query_index_tool", description="Get knowledge from ingested documents in LlamaCloud index.")
 async def query_index_tool(question: str) -> str:
-    response = await query_index(question=question)
-    if response is None:
-        return "Sorry, I was unable to find an answer to your question."
-    return response
+    try:
+        response = await query_index(question=question)
+        if response is None:
+            return "Sorry, I was unable to find an answer to your question."
+        return response
+    except Exception as e:
+        return f"Sorry, I was unable to find an answer to your question. Reason: {e}"
 
 
 if __name__ == "__main__":
