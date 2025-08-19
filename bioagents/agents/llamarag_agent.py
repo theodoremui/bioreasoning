@@ -39,7 +39,7 @@ COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 MCP_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8131/mcp/")
 
 LLAMACLOUD_PROJECT_NAME = os.getenv("LLAMACLOUD_PROJECT_NAME")
-LLAMACLOUD_ORGANIZATION_ID = os.getenv("LLAMACLOUD_ORGANIZATION_ID")
+LLAMACLOUD_ORG_ID = os.getenv("LLAMACLOUD_ORG_ID")
 LLAMACLOUD_API_KEY = os.getenv("LLAMACLOUD_API_KEY")
 LLAMACLOUD_INDEX_NAME = os.getenv("LLAMACLOUD_INDEX_NAME")
 
@@ -97,7 +97,7 @@ class LlamaRAGAgent(BaseAgent):
             cls._index = LlamaCloudIndex(
                 name=LLAMACLOUD_INDEX_NAME,
                 project_name=LLAMACLOUD_PROJECT_NAME,
-                organization_id=LLAMACLOUD_ORGANIZATION_ID,
+                organization_id=LLAMACLOUD_ORG_ID,
                 api_key=LLAMACLOUD_API_KEY,
             )
         return cls._index
