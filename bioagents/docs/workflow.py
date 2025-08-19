@@ -16,13 +16,13 @@ MCP_CLIENT = BasicMCPClient(command_or_url=MCP_SERVER_URL, timeout=MCP_CLIENT_TI
 
 # Retry configuration for MCP tool calls
 MCP_CALL_MAX_ATTEMPTS = int(os.getenv("MCP_CALL_MAX_ATTEMPTS", "3"))
-MCP_CALL_BACKOFF_SECONDS = float(os.getenv("MCP_CALL_BACKOFF_SECONDS", "2.0"))
+MCP_CALL_BACKOFF_MULTIPLIER = float(os.getenv("MCP_CALL_BACKOFF_MULTIPLIER", "2.0"))
 
 
 @retry(
     reraise=True,
     stop=stop_after_attempt(MCP_CALL_MAX_ATTEMPTS),
-    wait=wait_exponential(multiplier=MCP_CALL_BACKOFF_SECONDS),
+    wait=wait_exponential(multiplier=MCP_CALL_BACKOFF_MULTIPLIER),
     retry=retry_if_exception_type(Exception),
 )
 async def call_mcp_tool_with_retry(
