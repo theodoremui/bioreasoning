@@ -17,7 +17,8 @@ except ImportError:
 
 # Set up environment for testing
 os.environ.setdefault("OPENAI_API_KEY", "test-key-for-testing")
-os.environ.setdefault("BIOMCP_PORT", "8131")
+os.environ.setdefault("BIOMCP_PORT", "8132")
+os.environ.setdefault("DOCMCP_PORT", "8130")
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -65,16 +66,16 @@ async def mock_runner():
 @pytest.fixture
 def sample_citations():
     """Sample citations for testing."""
-    from bioagents.models.citation import Citation
+    from bioagents.models.source import Source
     
     return [
-        Citation(
+        Source(
             url="https://example.com/article1",
             title="Sample Article 1",
             snippet="This is a sample snippet",
             source="web"
         ),
-        Citation(
+        Source(
             url="https://example.com/article2",
             title="Sample Article 2", 
             snippet="Another sample snippet",

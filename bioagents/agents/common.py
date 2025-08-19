@@ -12,7 +12,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List
-from bioagents.models.citation import Citation
+from bioagents.models.source import Source
 
 class AgentRouteType(Enum):
     """
@@ -30,6 +30,6 @@ class AgentRouteType(Enum):
 @dataclass
 class AgentResponse:
     response_str: str
-    citations: List[Citation] = field(default_factory=list)
+    citations: List[Source] = field(default_factory=list)
     judge_response: str = ""
     route: AgentRouteType = AgentRouteType.REASONING

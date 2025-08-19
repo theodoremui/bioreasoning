@@ -100,18 +100,31 @@ class ChatPage:
                     message["citations"]):
                     self._render_citations(message["citations"])
     
-    def _render_citations(self, citations: list) -> None:
+    def _render_citations(self, sources: list) -> None:
         """
         Render citations in an expandable section.
         
         Args:
             citations: List of citation objects to display
         """
-        with st.expander("📚 Citations", expanded=False):
-            for i, citation in enumerate(citations):
-                render_text = f"**{i+1}.** [{citation.title}]({citation.url}) "
-                if hasattr(citation, 'snippet') and citation.snippet:
-                    render_text += f"*{citation.snippet}*"
+        with st.expander("📚 Sources", expanded=False):
+            for i, src in enumerate(sources):
+                title = f"**{i+1}.** [{src.title}]({src.url}) " if src.url \
+                    else f"**{i+1}.  {src.title}** "
+                render_text = title
+                if hasattr(src, 'source') and src.source:
+                    if src.start_page_label and src.end_page_label:
+                        if src.start_page_label != src.end_page_label:
+                            render_text += f" ({src.source} p.{src.start_page_label}-{src.end_page_label})"
+                        else:
+                            render_text += f" ({src.source} p.{src.start_page_label})"
+                    else:
+                        render_text += f" ({src.source})"
+                if hasattr(src, 'snippet') and src.snippet:
+                    snippet_text = " ".join(str(src.snippet).split())
+                    render_text += snippet_text
+                if hasattr(src, 'score') and src.source:
+                    render_text += f" ({src.score:.2f})"
                 st.markdown(render_text)
     
     def _handle_user_input(self) -> None:

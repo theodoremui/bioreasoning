@@ -21,7 +21,7 @@ except Exception:
     pass
 from loguru import logger
 
-from bioagents.models.citation import Citation
+from bioagents.models.source import Source
 from bioagents.models.llms import LLM
 from bioagents.agents.common import AgentResponse, AgentRouteType
 
@@ -45,18 +45,22 @@ class BaseAgent(ABC):
         route: AgentRouteType = AgentRouteType.REASONING
     ) -> AgentResponse:
         citations = []
+        seen_urls = set()
         for item in run_result.new_items:
             if item.type == 'message_output_item':
                 for content in item.raw_item.content:
                     if hasattr(content, 'annotations'):
                         for annotation in content.annotations:
                             if annotation.type == 'url_citation':
-                                citations.append(Citation(
-                                    url=annotation.url,
-                                    title=annotation.title,
-                                    snippet=content.text[annotation.start_index:annotation.end_index],
-                                    source="web"
-                                ))
+                                url = getattr(annotation, 'url', None)
+                                if url and url not in seen_urls:
+                                    citations.append(Source(
+                                        url=url,
+                                        title=annotation.title,
+                                        snippet=content.text[annotation.start_index:annotation.end_index],
+                                        source="web"
+                                    ))
+                                    seen_urls.add(url)
         
         return AgentResponse(
             response_str=run_result.final_output,
@@ -77,7 +81,10 @@ class BaseAgent(ABC):
                 input=query_str,
                 max_turns=3,
             )
-            logger.info(f"{self.name}: {query_str} -> {trace_id}")
+            logger.info(f"\t{self.name}: {query_str} -> {trace_id}")
+            # If a tool returned an AgentResponse directly, surface it as-is
+            if isinstance(result.final_output, AgentResponse):
+                return result.final_output
             return self._construct_response(result, "", AgentRouteType.REASONING)
         except Exception as e:
             logger.error(f"achat: {str(e)}")

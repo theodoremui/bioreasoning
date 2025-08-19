@@ -49,7 +49,7 @@ class ChitChatAgent(BaseAgent):
     
     @override
     async def achat(self, query_str: str) -> AgentResponse:
-        logger.info(f"=> websearch: {self.name}: {query_str}")
+        logger.info(f"=> chitchat: {self.name}: {query_str}")
 
         response = await super().achat(query_str)
         response.route = AgentRouteType.CHITCHAT

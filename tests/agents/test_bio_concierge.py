@@ -188,7 +188,7 @@ class TestBioConciergeAgent:
     @pytest.mark.asyncio
     async def test_achat_with_citations(self, mock_runner_run, mock_chitchat, mock_web, mock_biomcp):
         # Setup mock response with citations
-        from bioagents.models.citation import Citation
+        from bioagents.models.source import Source
         mock_run_result = MagicMock()
         mock_run_result.final_output = "Web Reasoning Agent: A recent PubMed article..."
         mock_run_result.new_items = []

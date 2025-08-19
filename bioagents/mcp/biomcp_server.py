@@ -27,7 +27,7 @@ _ = load_dotenv(find_dotenv())
 
 # Create server
 mcp = FastMCP("BioMCP Server")
-mcp.settings.port = os.environ.get("BIOMCP_PORT", 8131)
+mcp.settings.port = os.environ.get("BIOMCP_PORT", 8132)
 
 #--------------------------------
 # Tools

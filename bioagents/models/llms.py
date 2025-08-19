@@ -17,25 +17,42 @@ from openai import AsyncOpenAI, OpenAI
 from dataclasses import dataclass
 from typing import List
 
+from bioagents.commons import classproperty
+
 @dataclass
 class LLM:
     # Model identifiers
+    GPT_5 = "gpt-5"
+    GPT_5_MINI = "gpt-5-mini"
+    GPT_5_NANO = "gpt-5-nano"
     GPT_4_1 = "gpt-4.1"
     GPT_4_1_MINI = "gpt-4.1-mini"
     GPT_4_1_NANO = "gpt-4.1-nano"
-    GPT_4O = "gpt-4o"
+    GPT_4O = "gpt-4o"        
 
     # Shared OpenAI client instance
     _client: OpenAI | None = None
     _async_client: AsyncOpenAI | None = None
     _model_name = GPT_4_1_MINI
     _timeout = 60
-    
+
+    @classproperty
+    def openai_client(cls) -> OpenAI:
+        if cls._client is None:
+            cls._client = OpenAI(timeout=cls._timeout)
+        return cls._client
+
+    @classproperty
+    def openai_async_client(cls) -> AsyncOpenAI:
+        if cls._async_client is None:
+            cls._async_client = AsyncOpenAI(timeout=cls._timeout)
+        return cls._async_client
+
     def __init__(self, model_name=GPT_4_1_MINI, timeout=60):
         self._model_name = model_name
         self._timeout = timeout
-        self._client = OpenAI(timeout=self._timeout)
-        self._async_client = AsyncOpenAI(timeout=self._timeout)
+        self._client = None
+        self._async_client = None
     
     async def achat_completion(self, query_str: str, **kwargs) -> str:
         """
