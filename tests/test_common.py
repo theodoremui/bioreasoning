@@ -4,7 +4,7 @@ Tests for bioagents.agents.common module.
 
 import pytest
 from bioagents.agents.common import AgentResponse, AgentRouteType
-from bioagents.models.citation import Citation
+from bioagents.models.source import Source
 
 
 class TestAgentRouteType:
@@ -59,7 +59,7 @@ class TestAgentResponse:
         response2 = AgentResponse(response_str="Response 2")
         
         # Add citation to first response
-        citation = Citation(
+        citation = Source(
             url="https://example.com",
             title="Test",
             snippet="Test snippet",
@@ -116,7 +116,7 @@ class TestAgentResponse:
         response = AgentResponse(response_str="Test")
         
         # Test append
-        citation = Citation(
+        citation = Source(
             url="https://example.com",
             title="Test",
             snippet="Test snippet", 
@@ -127,7 +127,7 @@ class TestAgentResponse:
         
         # Test extend
         more_citations = [
-            Citation(url="https://example2.com", title="Test2", snippet="Test2", source="test2")
+            Source(url="https://example2.com", title="Test2", snippet="Test2", source="test2")
         ]
         response.citations.extend(more_citations)
         assert len(response.citations) == 2

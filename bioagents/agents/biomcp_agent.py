@@ -91,7 +91,7 @@ class BioMCPConnectionError(BioMCPAgentError):
     """Raised when connection to the MCP server fails."""
     pass
 
-BIOMCP_PORT = int(os.environ.get("BIOMCP_PORT", 8131))
+BIOMCP_PORT = int(os.environ.get("BIOMCP_PORT", 8132))
 
 class BioMCPAgent(BaseAgent):
     """
@@ -133,7 +133,7 @@ class BioMCPAgent(BaseAgent):
         Initialize the BioMCPAgent.
         
         Args:
-            port: Port for the MCP server (defaults to BIOMCP_PORT env var or 8131)
+            port: Port for the MCP server (defaults to BIOMCP_PORT env var or 8132)
             timeout: Timeout for individual requests in seconds (increased for biomedical queries)
             server_startup_timeout: Timeout for server startup in seconds  
             debug: Enable debug logging
@@ -643,7 +643,7 @@ if __name__ == "__main__":
             print("   • OpenAI API key is properly configured")
             print("   • biomcp-python dependencies are available")
             print("   • Network connectivity for PubMed access")
-            print("   • Port availability (default: 8131)")
+            print("   • Port availability (default: 8132)")
             print("=" * 80)
             exit(1)
             

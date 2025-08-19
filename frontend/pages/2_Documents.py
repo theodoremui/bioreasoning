@@ -126,14 +126,20 @@ def read_html_file(file_path: str) -> str:
 
 
 async def run_workflow(
-    file: io.BytesIO, document_title: str
+    file: UploadedFile, document_title: str
 ) -> Tuple[str, str, str, str, str]:
-    # Create temp file with proper Windows handling
-    with temp.NamedTemporaryFile(suffix=".pdf", delete=False) as fl:
-        content = file.getvalue()
-        fl.write(content)
-        fl.flush()  # Ensure data is written
-        temp_path = fl.name
+    """Run the NotebookLM workflow on the uploaded file, preserving filename.
+
+    We materialize the uploaded file to a temporary directory using the original
+    filename to ensure downstream tools (e.g., LlamaParse/LlamaCloud) retain the
+    correct file metadata rather than a random tmp name.
+    """
+    # Create a temp directory and write the uploaded bytes with the original name
+    tmp_dir = temp.mkdtemp()
+    original_name = getattr(file, "name", "uploaded_file")
+    temp_path = os.path.join(tmp_dir, original_name)
+    with open(temp_path, "wb") as fl:
+        fl.write(file.getvalue())
 
     try:
         st_time = int(time.time() * 1000000)
@@ -173,11 +179,12 @@ async def run_workflow(
         try:
             os.remove(temp_path)
         except OSError:
-            await asyncio.sleep(0.1)
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass  # Give up if still locked
+            pass
+        try:
+            # Attempt to remove the temp directory as well
+            os.rmdir(tmp_dir)
+        except OSError:
+            pass
 
 
 def sync_run_workflow(file: io.BytesIO, document_title: str):

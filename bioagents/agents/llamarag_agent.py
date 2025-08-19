@@ -8,23 +8,41 @@
 #------------------------------------------------------------------------------
 
 import asyncio
+import hashlib
+from datetime import datetime
 import os
-from typing import List, override
+from typing import List, override, Optional, Any
 from loguru import logger
+from pydantic import BaseModel
 
 from agents import Agent, Runner, function_tool
 from agents.model_settings import ModelSettings
+from bioagents.commons import classproperty
 from agents.tracing import set_tracing_disabled
 from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
 from llama_index.core.base.response.schema import Response
-from llama_index.core.schema import NodeWithScore
+from llama_index.postprocessor.cohere_rerank import CohereRerank
 
 from bioagents.agents.common import AgentResponse, AgentRouteType
+from bioagents.models.source import Source
+from bioagents.utils.text_utils import make_title_and_snippet
 from bioagents.models.llms import LLM
 from bioagents.agents.base_agent import BaseAgent
-from datetime import timedelta
 
 set_tracing_disabled(disabled=True)
+
+# Cohere reranker settings (model alt: rerank-english-v3.0)
+COHERE_RERANKER_MODEL = os.getenv("COHERE_RERANKER_MODEL", "rerank-v3.5")
+COHERE_RERANK_TOP_N = int(os.getenv("COHERE_RERANK_TOP_N", "6"))
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+
+MCP_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8131/mcp/")
+
+LLAMACLOUD_PROJECT_NAME = os.getenv("LLAMACLOUD_PROJECT_NAME")
+LLAMACLOUD_ORGANIZATION_ID = os.getenv("LLAMACLOUD_ORGANIZATION_ID")
+LLAMACLOUD_API_KEY = os.getenv("LLAMACLOUD_API_KEY")
+LLAMACLOUD_INDEX_NAME = os.getenv("LLAMACLOUD_INDEX_NAME")
+
 
 INSTRUCTIONS = f"""\
 You are an LlamaCloud RAG agent that can query documents and knowledge about Breast Cancer guidelines, 
@@ -35,88 +53,149 @@ including:
 - Invasive Breast Cancer diagnosis, workup, clinical stage assessment, surgery,
    histology, HR status, HER2 status, systemic adjuvant treatment, and follow-up
 
-You should always directly answer the user's question, without asking for permission, any preambles.
+You should always directly answer the user's question thoroughly in a well structured manner.
+You do not need to ask for permission, nor should you include any preambles.
 Your response should include relevant citation information from the source documents.\n
 
 ## Response Instructions:
 - Prepend the response with '[RAG]'
+- Respond in a well structured Markdown format with proper headings and subheadings.
+- Use bold text for important terms and phrases.
+
+Today's date: {datetime.now().strftime("%Y-%m-%d")}
 """
 
 HANDOFF_DESCRIPTION = f"""\
 You are an LlamaCloud RAG agent that can query documents and knowledge about NCCN Breast Cancer guidelines
 """
 
-MCP_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8131/mcp/")
-
-LLAMACLOUD_PROJECT_NAME = os.getenv("LLAMACLOUD_PROJECT_NAME")
-LLAMACLOUD_ORGANIZATION_ID = os.getenv("LLAMACLOUD_ORGANIZATION_ID")
-LLAMACLOUD_API_KEY = os.getenv("LLAMACLOUD_API_KEY")
-LLAMACLOUD_INDEX_NAME = os.getenv("LLAMACLOUD_INDEX_NAME")
-# LLAMACLOUD_PIPELINE_ID = os.getenv("LLAMACLOUD_PIPELINE_ID")
-
-@function_tool()
-def query_index(query: str) -> str:
-    """Query the documents and knowledge in an LlamaCloud index."""
-    
-    try:
-        index = LlamaCloudIndex(
-            name=LLAMACLOUD_INDEX_NAME,
-            project_name=LLAMACLOUD_PROJECT_NAME,
-            organization_id=LLAMACLOUD_ORGANIZATION_ID,
-            # pipeline_id=LLAMACLOUD_PIPELINE_ID,
-            api_key=LLAMACLOUD_API_KEY,
-        )
-
-        # nodes: List[NodeWithScore] = index.as_retriever().retrieve(query)
-        response = index.as_query_engine().query(query)
-        if isinstance(response, Response):
-            return response.response
-        else:
-            return str(response)
-    except Exception as e:
-        logger.error(f"Error querying LlamaCloud index: {e}")
-        return f"Error querying LlamaCloud index: {e}"
 
 class LlamaRAGAgent(BaseAgent):
     """
     This agent is an LlamaCloud RAG agent that can query the LlamaCloud index.
     """
+    _index: Optional[LlamaCloudIndex] = None
+    _query_engine: Optional[Any] = None
+    _reranker: Optional[CohereRerank] = None
+
+
+    @classproperty
+    def reranker(cls) -> Optional[CohereRerank]:
+        if cls._reranker is None:
+            try:
+                if COHERE_API_KEY:
+                    cls._reranker = CohereRerank(model=COHERE_RERANKER_MODEL, top_n=COHERE_RERANK_TOP_N)
+            except Exception as e:
+                logger.warning(f"Reranker initialization skipped: {e}")
+        return cls._reranker
+
+    @classproperty
+    def index(cls) -> LlamaCloudIndex:
+        if cls._index is None:
+            if not LLAMACLOUD_INDEX_NAME or not LLAMACLOUD_API_KEY:
+                raise ValueError("LlamaCloud index issue: check LLAMACLOUD_INDEX_NAME LLAMACLOUD_API_KEY.")
+            cls._index = LlamaCloudIndex(
+                name=LLAMACLOUD_INDEX_NAME,
+                project_name=LLAMACLOUD_PROJECT_NAME,
+                organization_id=LLAMACLOUD_ORGANIZATION_ID,
+                api_key=LLAMACLOUD_API_KEY,
+            )
+        return cls._index
+
+    @classproperty
+    def query_engine(cls):
+        if cls._query_engine is None:
+            post_processors = [cls.reranker] if cls.reranker is not None else []
+            cls._query_engine = cls.index.as_query_engine(
+                similarity_top_k=10,
+                node_postprocessors=post_processors,
+            )
+        return cls._query_engine
+
+
+    @staticmethod
+    @function_tool()
+    def query_index(query: str) -> AgentResponse:
+        """Query the documents and knowledge in a LlamaCloud index."""
+        try:
+            response = LlamaRAGAgent.query_engine.query(query)
+            
+            sources = []
+            seen_text_hashes = set()
+            for source in response.source_nodes:
+                # Deduplicate by exact text content
+                text_value = source.text or ""
+                text_hash = hashlib.sha256(text_value.encode("utf-8", errors="ignore")).hexdigest()
+                if text_hash in seen_text_hashes:
+                    continue
+                seen_text_hashes.add(text_hash)
+                title, snippet = make_title_and_snippet(source.text, query)
+                src = Source(
+                    title=title,
+                    snippet=snippet,
+                    source=source.metadata["file_name"] \
+                        if "file_name" in source.metadata else "",
+                    file_name=source.metadata["file_name"] \
+                        if "file_name" in source.metadata else "",
+                    start_page_label=str(source.metadata["start_page_label"]) \
+                        if "start_page_label" in source.metadata else "",
+                    end_page_label=str(source.metadata["end_page_label"]) \
+                        if "end_page_label" in source.metadata else "",
+                    score=source.score,
+                    text=source.text,
+                )
+                sources.append(src)
+                
+            if isinstance(response, Response):
+                return AgentResponse(
+                    response_str=response.response,
+                    citations=sources,
+                    judge_response="",
+                    route=AgentRouteType.LLAMARAG
+                )
+            return AgentResponse(
+                response_str=str(response),
+                citations=[],
+                judge_response="",
+                route=AgentRouteType.LLAMARAG
+            )
+        except Exception as e:
+            logger.error(f"Error querying LlamaCloud index: {e}")
+            return f"Error querying LlamaCloud index: {e}"
+
     def __init__(
         self, name: str, 
         model_name: str=LLM.GPT_4_1_MINI, 
     ):
         self.instructions = INSTRUCTIONS
         self.handoff_description = HANDOFF_DESCRIPTION
-
+        
         super().__init__(name, model_name, self.instructions)
         self._agent = self._create_agent()
 
     def _create_agent(self) -> Agent:
         """Create the core RAG Agent."""
-
         return Agent(
             name=self.name,
             model=self.model_name,
             instructions=self.instructions,
             handoff_description=self.handoff_description,
-            tools=[query_index],
-            model_settings=ModelSettings(tool_choice="required"),
+            tools=[LlamaRAGAgent.query_index],
+            model_settings=ModelSettings(
+                tool_choice="required",
+            ),
+            tool_use_behavior="stop_on_first_tool",
+            output_type=AgentResponse,
         )
     
     @override
     async def achat(self, query_str: str) -> AgentResponse:
-        logger.info(f"=> llamamcp: {self.name}: {query_str}")
+        logger.info(f"=> llamarag: {self.name}: {query_str}")
 
-        try:
-            result = await Runner.run(starting_agent=self._agent, input=query_str)
-            return self._construct_response(result, "", AgentRouteType.LLAMARAG)
-        except Exception as e:
-            logger.error(f"RAG agent failed: {e}")
-            return AgentResponse(
-                response_str=f"[LlamaCloud RAG] RAG agent not working.",
-                route=AgentRouteType.LLAMARAG,
-            )
-
+        response = await super().achat(query_str)
+        response.route = AgentRouteType.LLAMARAG
+        return response
+ 
     
 #------------------------------------------------
 # Example usage

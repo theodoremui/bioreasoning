@@ -17,17 +17,15 @@ index = LlamaCloudIndex(
 )
 
 if __name__ == "__main__":
-    print(f"Index name: {LLAMACLOUD_INDEX_NAME}")
-    print(f"Project name: {LLAMACLOUD_PROJECT_NAME}")
-    print(f"Organization ID: {LLAMACLOUD_ORG_ID}")
-    print(f"API key: {LLAMACLOUD_API_KEY}")
-    
-    query = "How best to treat a patient with a HER2+ breast cancer?"
-    try:
-        nodes = index.as_retriever().retrieve(query)
-        for node in nodes:
-            print(f"==> {node.text}")
-        response = index.as_query_engine().query(query)
-        print(f"Response: {response}")
-    except Exception as e:
-        print(f"Error: {e}")
+    # query = "How best to treat a patient with a HER2+ breast cancer?"
+    query = input("You > ")
+    while query.strip() != "":
+        try:
+            nodes = index.as_retriever().retrieve(query)
+            for node in nodes:
+                print(f"==> {node.text}")
+            response = index.as_query_engine().query(query)
+            print(f"Response: {response}")
+        except Exception as e:
+            print(f"Error: {e}")
+        query = input("You > ")

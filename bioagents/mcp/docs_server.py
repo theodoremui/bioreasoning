@@ -12,7 +12,7 @@ from bioagents.docs.processing import process_file
 from bioagents.docs.mindmap import get_mind_map
 
 mcp: FastMCP = FastMCP(name="MCP For NotebookLM")
-mcp.settings.port = int(os.getenv("BIOMCP_PORT", "8131"))
+mcp.settings.port = int(os.getenv("DOCMCP_PORT", "8131"))
 mcp.settings.host = "localhost"
 
 @mcp.tool(

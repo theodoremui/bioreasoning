@@ -1901,6 +1901,19 @@ wheels = [
 ]
 
 [[package]]
+name = "llama-index-postprocessor-cohere-rerank"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cohere" },
+    { name = "llama-index-core" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5c/c9/33ca7f663f48bed86b98fbefa42a72e1cd5d8282e0c72d294685336ef355/llama_index_postprocessor_cohere_rerank-0.4.0.tar.gz", hash = "sha256:a8a78828187cd247f6cde4136421a6608c2e58ae97bf01f7bd9f9475f093143c", size = 4008 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/19/1e/248a5d4798db94a76726ce2c423aff75307090e46b502b597433467023ac/llama_index_postprocessor_cohere_rerank-0.4.0-py3-none-any.whl", hash = "sha256:2247f90044551fdaa3c2884d475fed2fdda160f4e6737e472ef76328024bff0e", size = 3716 },
+]
+
+[[package]]
 name = "llama-index-tools-mcp"
 version = "0.2.6"
 source = { registry = "https://pypi.org/simple" }
@@ -3228,6 +3241,7 @@ dependencies = [
     { name = "llama-index-indices-managed-llama-cloud" },
     { name = "llama-index-llms-openai" },
     { name = "llama-index-observability-otel" },
+    { name = "llama-index-postprocessor-cohere-rerank" },
     { name = "llama-index-tools-mcp" },
     { name = "llama-index-workflows" },
     { name = "loguru" },
@@ -3272,6 +3286,7 @@ requires-dist = [
     { name = "llama-index-indices-managed-llama-cloud", specifier = ">=0.6.11" },
     { name = "llama-index-llms-openai", specifier = ">=0.4.7" },
     { name = "llama-index-observability-otel", specifier = ">=0.1.1" },
+    { name = "llama-index-postprocessor-cohere-rerank", specifier = ">=0.4.0" },
     { name = "llama-index-tools-mcp", specifier = ">=0.2.6" },
     { name = "llama-index-workflows", specifier = ">=1.1.0" },
     { name = "loguru", specifier = ">=0.7.3" },
