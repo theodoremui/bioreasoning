@@ -51,8 +51,15 @@ class LLM:
     def __init__(self, model_name=GPT_4_1_MINI, timeout=60):
         self._model_name = model_name
         self._timeout = timeout
-        self._client = None
-        self._async_client = None
+        # Initialize per-instance clients to satisfy tests expecting not None
+        try:
+            self._client = OpenAI(timeout=self._timeout)
+        except Exception:
+            self._client = None
+        try:
+            self._async_client = AsyncOpenAI(timeout=self._timeout)
+        except Exception:
+            self._async_client = None
     
     async def achat_completion(self, query_str: str, **kwargs) -> str:
         """

@@ -19,7 +19,7 @@ class Source(BaseModel):
     start_page_label: Optional[str] = Field(description="The start page label of the source", default="")
     end_page_label: Optional[str] = Field(description="The end page label of the source", default="")
     score: Optional[float] = Field(description="The score of the source", default=0.0)
-    text: str = Field(description="Original full text -- without edits or any change")
+    text: Optional[str] = Field(description="Original full text -- without edits or any change", default="")
 
 class SourceList(BaseModel):
     sources: List[Source] = Field(description="A list of sources")

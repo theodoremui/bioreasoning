@@ -11,8 +11,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 # Allow long-running tools (e.g., LlamaCloud extraction) to complete without client timeout.
 # Configurable via MCP_CLIENT_TIMEOUT env var; default to 900s (15 minutes).
 MCP_CLIENT_TIMEOUT = int(os.getenv("MCP_CLIENT_TIMEOUT", "900"))
-MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8131/mcp")
-MCP_CLIENT = BasicMCPClient(command_or_url=MCP_SERVER_URL, timeout=MCP_CLIENT_TIMEOUT)
+DOCMCP_SERVER_URL = os.getenv("DOCMCP_SERVER_URL", "http://localhost:8130/mcp")
+DOCMCP_CLIENT = BasicMCPClient(command_or_url=DOCMCP_SERVER_URL, timeout=MCP_CLIENT_TIMEOUT)
 
 # Retry configuration for MCP tool calls
 MCP_CALL_MAX_ATTEMPTS = int(os.getenv("MCP_CALL_MAX_ATTEMPTS", "3"))
@@ -53,7 +53,7 @@ class MindMapCreationEvent(Event):
 
 
 def get_mcp_client(*args, **kwargs) -> BasicMCPClient:
-    return MCP_CLIENT
+    return DOCMCP_CLIENT
 
 
 class NotebookLMWorkflow(Workflow):

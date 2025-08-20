@@ -25,7 +25,7 @@ from bioagents.models.llms import LLM
 from bioagents.agents.base_agent import BaseAgent
 from datetime import timedelta
 
-MCP_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8131/mcp/")
+DOCMCP_URL = os.getenv("DOCMCP_SERVER_URL", "http://localhost:8130/mcp/")
 
 INSTRUCTIONS = f"""
 You are an LlamaCloud MCP agent that can query documents and knowledge about ICD-10 and medical codes.
@@ -61,7 +61,7 @@ class LlamaMCPAgent(BaseAgent):
         self._mcp_server = MCPServerStreamableHttp(
             name="LlamaCloud MCP Server",
             params={
-                "url": MCP_URL,
+                "url": DOCMCP_URL,
                 "timeout": timedelta(seconds=20),
                 "sse_read_timeout": timedelta(seconds=120),
                 "terminate_on_close": False,
@@ -75,6 +75,7 @@ class LlamaMCPAgent(BaseAgent):
             instructions=self.instructions,
             handoff_description=self.handoff_description,
             model_settings=ModelSettings(tool_choice="required"),
+            tool_use_behavior="stop_on_first_tool",
         )
 
     async def start(self) -> None:
@@ -141,9 +142,9 @@ class LlamaMCPAgent(BaseAgent):
             result = await Runner.run(starting_agent=self._agent, input=query_str)
             return self._construct_response(result, "", AgentRouteType.LLAMAMCP)
         except Exception as e:
-            logger.error(f"MCP connection failed to {MCP_URL}: {e}")
+            logger.error(f"MCP connection failed to {DOCMCP_URL}: {e}")
             return AgentResponse(
-                response_str=f"[LlamaCloud MCP] MCP server not reachable at {MCP_URL}. Start it first, then retry.",
+                response_str=f"[LlamaCloud MCP] MCP server not reachable at {DOCMCP_URL}. Start it first, then retry.",
                 route=AgentRouteType.LLAMAMCP,
             )
 

@@ -14,6 +14,6 @@ else
     echo "Already in virtual environment: $VIRTUAL_ENV"
 fi
 # Run the streamlit app
-echo "Starting Docs MCP server..."
+echo "Starting BioMCP server..."
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-uv run bioagents/mcp/docs_server.py
+uv run bioagents/mcp/biomcp_server.py

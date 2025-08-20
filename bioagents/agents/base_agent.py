@@ -24,6 +24,7 @@ from loguru import logger
 from bioagents.models.source import Source
 from bioagents.models.llms import LLM
 from bioagents.agents.common import AgentResponse, AgentRouteType
+from bioagents.utils.text_utils import make_contextual_snippet
 
 class BaseAgent(ABC):
     def __init__(
@@ -39,12 +40,12 @@ class BaseAgent(ABC):
         self._agent = None
 
     def _construct_response(
-        self, 
+        self,
         run_result: RunResult,
         judge_response: str = "",
-        route: AgentRouteType = AgentRouteType.REASONING
+        route: AgentRouteType = AgentRouteType.REASONING,
     ) -> AgentResponse:
-        citations = []
+        sources = []
         seen_urls = set()
         for item in run_result.new_items:
             if item.type == 'message_output_item':
@@ -54,17 +55,17 @@ class BaseAgent(ABC):
                             if annotation.type == 'url_citation':
                                 url = getattr(annotation, 'url', None)
                                 if url and url not in seen_urls:
-                                    citations.append(Source(
+                                    sources.append(Source(
                                         url=url,
                                         title=annotation.title,
                                         snippet=content.text[annotation.start_index:annotation.end_index],
-                                        source="web"
+                                        source="web",
                                     ))
                                     seen_urls.add(url)
         
         return AgentResponse(
             response_str=run_result.final_output,
-            citations=citations,
+            citations=sources,
             judge_response=judge_response,
             route=route
         )
