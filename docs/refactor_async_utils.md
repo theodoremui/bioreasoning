@@ -32,7 +32,6 @@ from bioagents.utils.async_utils import run_async_in_streamlit
 
 - `frontend/pages/1_Chat.py` - Updated import for chat functionality
 - `frontend/pages/2_Documents.py` - Updated import for podcast generation
-- `bioreasoning.py` - Updated import for main chat interface
 - `tests/test_async_utils.py` - Updated test imports
 - `docs/async_event_loop_fix.md` - Updated documentation
 
