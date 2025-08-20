@@ -9,6 +9,7 @@ Date: 2025-04-26
 """
 
 import streamlit as st
+import re
 import asyncio
 from typing import Optional
 
@@ -121,8 +122,9 @@ class ChatPage:
                     else:
                         render_text += f" ({src.source})"
                 if hasattr(src, 'snippet') and src.snippet:
+                    # Plain text, collapsed whitespace, indent with Markdown blockquote
                     snippet_text = " ".join(str(src.snippet).split())
-                    render_text += snippet_text
+                    render_text += f"\n> {snippet_text}"
                 if hasattr(src, 'score') and src.source:
                     render_text += f" ({src.score:.2f})"
                 st.markdown(render_text)

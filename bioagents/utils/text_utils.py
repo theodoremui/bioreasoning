@@ -101,6 +101,10 @@ def make_contextual_snippet(
         end = min(space_after, start + max_length)
 
     snippet = text_stripped[start:end].strip()
+    # Remove Markdown heading markers at line starts (e.g., '#', '##', ...)
+    cleaned = re.sub(r"(?m)^\s*#{1,6}\s*", "", snippet)
+    # Collapse whitespace/newlines into single spaces
+    snippet = " ".join(cleaned.split())
 
     # Add ellipses if we trimmed the original text
     if start > 0:

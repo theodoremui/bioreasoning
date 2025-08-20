@@ -129,7 +129,11 @@ class LlamaRAGAgent(BaseAgent):
                 if text_hash in seen_text_hashes:
                     continue
                 seen_text_hashes.add(text_hash)
-                title, snippet = make_title_and_snippet(source.text, query)
+                title, snippet = make_title_and_snippet(
+                    text=source.text, 
+                    query=query,
+                    max_length=300,    
+                )
                 src = Source(
                     title=title,
                     snippet=snippet,
