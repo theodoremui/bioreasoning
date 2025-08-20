@@ -110,9 +110,8 @@ class ChatPage:
         """
         with st.expander("📚 Sources", expanded=False):
             for i, src in enumerate(sources):
-                title = f"**{i+1}.** [{src.title}]({src.url}) " if src.url \
+                render_text = f"**{i+1}.** [{src.title}]({src.url}) " if src.url \
                     else f"**{i+1}.  {src.title}** "
-                render_text = title
                 if hasattr(src, 'source') and src.source:
                     if src.start_page_label and src.end_page_label:
                         if src.start_page_label != src.end_page_label:
@@ -125,7 +124,7 @@ class ChatPage:
                     # Plain text, collapsed whitespace, indent with Markdown blockquote
                     snippet_text = " ".join(str(src.snippet).split())
                     render_text += f"\n> {snippet_text}"
-                if hasattr(src, 'score') and src.source:
+                if hasattr(src, 'score') and src.score > 0.0:
                     render_text += f" ({src.score:.2f})"
                 st.markdown(render_text)
     

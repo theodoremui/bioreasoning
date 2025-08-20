@@ -36,7 +36,7 @@ COHERE_RERANKER_MODEL = os.getenv("COHERE_RERANKER_MODEL", "rerank-v3.5")
 COHERE_RERANK_TOP_N = int(os.getenv("COHERE_RERANK_TOP_N", "6"))
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 
-MCP_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8131/mcp/")
+DOCMCP_URL = os.getenv("DOCMCP_SERVER_URL", "http://localhost:8130/mcp/")
 
 LLAMACLOUD_PROJECT_NAME = os.getenv("LLAMACLOUD_PROJECT_NAME")
 LLAMACLOUD_ORG_ID = os.getenv("LLAMACLOUD_ORG_ID")

@@ -28,21 +28,10 @@
             "jinja": true
         },
         {
-            "name": "streamlit bioreasoning",
+            "name": "biomcp",
             "type": "debugpy",
             "request": "launch",
-            "module": "streamlit",
-            "args": [
-                "run",
-                "bioreasoning.py"
-            ],
-            "jinja": true
-        },
-        {
-            "name": "mcp server",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "bioagents/mcp/knowledge_server.py",
+            "module": "bioagents.agents.biomcp",
             "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
