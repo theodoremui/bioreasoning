@@ -38,32 +38,79 @@ The Bio Reasoning Project implements an intelligent agent orchestration system d
 
 ## System Architecture
 
-The system is composed of two main components:
-- **Knowledge Server (MCP)**: Handles document processing, mindmap, and podcast generation
+The system is composed of three main components:
+- **BioMCP Server**: Biomedical tools and research endpoints (variants, PubMed, biomedical datasets)
+- **DocMCP Server**: Document-centric tools backed by a LlamaCloud index (RAG, mindmaps, podcast generation)
 - **Knowledge Client (Streamlit)**: User-facing web interface for uploads, queries, and results
 
 ```mermaid
-flowchart TD
+flowchart LR
     User([User])
     subgraph Client
-        StreamlitApp([Streamlit Knowledge Client])
-    end
-    subgraph Server
-        MCPServer([MCP Knowledge Server])
-        DocProc([Document Processor])
-        MindMap([Mindmap Generator])
-        Podcast([Podcast Generator])
+        UI([Streamlit Knowledge Client])
+        Concierge([BioConcierge Agent])
     end
 
-    User --> StreamlitApp
-    StreamlitApp --"Upload/Query"--> MCPServer
-    MCPServer --"Process Document"--> DocProc
-    DocProc --"Results"--> MCPServer
-    MCPServer --"Generate Mindmap"--> MindMap
-    MindMap --"HTML Mindmap"--> MCPServer
-    MCPServer --"Generate Podcast"--> Podcast
-    Podcast --"Audio File"--> MCPServer
-    MCPServer --"Results, Mindmap, Podcast"--> StreamlitApp
+    subgraph Servers
+        subgraph BioMCP
+            BioMCPServer([BioMCP Server<br/>biomedical tool])
+        end
+        subgraph DocMCP
+            DocMCPServer([DocMCP Server<br/>LlamaCloud])
+        end
+    end
+
+    subgraph Agents
+        A1([BioMCP Agent])
+        A2([DocMCP Agent])
+        A3([WebSearch Agent])
+        A4([ChitChat Agent])
+    end
+
+    User --> UI
+    UI --> Concierge
+    Concierge --> A1
+    Concierge --> A2
+    Concierge --> A3
+    Concierge --> A4
+    A1 --> BioMCPServer
+    A2 --> DocMCPServer
+    A3 -->|Web| Internet[[Web]]
+    A4 -->|LLM| LLM([Chat LLM Model])
+```
+
+### Routing overview
+```mermaid
+flowchart TD
+    Q([User Query]) --> R["BioConcierge Router<br/>choose exactly one"]
+    R -->|biomedical| A1[BioMCP Agent]
+    R -->|documents/RAG| A2[DocMCP Agent]
+    R -->|general/current events| A3[WebSearch Agent]
+    R -->|small talk| A4[ChitChat Agent]
+
+    A1 --> BioMCP[[BioMCP Server]]
+    A2 --> DocMCP[[DocMCP Server<br/>LlamaCloud]]
+    A3 --> Web[[Search + Crawl]]
+    A4 --> LLM[[Chat Model]]
+```
+
+### Request sequence (typical)
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as Streamlit UI
+    participant C as BioConcierge
+    participant A2 as DocMCP Agent
+    participant D as DocMCP Server
+    U->>UI: Ask question / upload docs
+    UI->>C: Forward prompt
+    C->>C: Route to best agent
+    C->>A2: Delegate query
+    A2->>D: Tool calls (RAG / Mindmap / Podcast)
+    D-->>A2: Results
+    A2-->>C: Answer + citations
+    C-->>UI: Final response
+    UI-->>U: Display with sources
 ```
 
 ---
@@ -169,26 +216,64 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 ## Running the System
 
-### 1. Start the Knowledge Server (MCP)
-This server handles all document, mindmap, and podcast processing.
+### 1) Start both MCP servers
 
+- BioMCP (biomedical tools):
 ```bash
-./run-docs-server.sh
+./scripts/run-biomcp-server.sh
 ```
-- Activates the virtual environment if needed
-- Runs the MCP server (`bioagents/mcp/knowledge_server.py`)
 
-### 2. Start the Knowledge Client (Streamlit)
-This is the user-facing web app.
-
+- DocMCP (LlamaCloud index / documents):
 ```bash
-./run-docs-client.sh
+./scripts/run-docs-server.sh
 ```
-- Activates the virtual environment if needed
-- Installs Streamlit if missing
+
+Environment variables (optional overrides):
+- `BIOMCP_SERVER_URL` (default: `http://localhost:8132/mcp/`)
+- `DOCMCP_SERVER_URL` (default: `http://localhost:8130/mcp/`)
+
+### 2) Start the Knowledge Client (Streamlit)
+```bash
+./scripts/run-docs-client.sh
+```
 - Runs the Streamlit app (`frontend/app.py`)
+- Opens the chat interface at `http://localhost:8501`
 
-> **Note:** Both the server and client must be running for full functionality.
+> Ensure both servers and the client are running for full functionality.
+
+### 3) Quick smoke tests (CLI)
+- BioMCP Agent smoke test:
+```bash
+python -m bioagents.agents.biomcp_agent
+```
+- Concierge router demo:
+```bash
+python -m bioagents.agents.bio_concierge
+```
+
+> These scripts log tool discovery and basic connectivity.
+
+## MCP Servers
+
+- **BioMCP Server**: exposes biomedical tools (variants, PubMed, biomedical data)
+  - URL: `BIOMCP_SERVER_URL` (default `http://localhost:8132/mcp/`)
+  - Scripts: `scripts/run-biomcp-server.sh`
+
+- **DocMCP Server**: exposes document tools backed by LlamaCloud index
+  - URL: `DOCMCP_SERVER_URL` (default `http://localhost:8130/mcp/`)
+  - Scripts: `scripts/run-docs-server.sh`
+
+Both servers speak the MCP streamable HTTP protocol consumed by the agents.
+
+## Agents & Routing
+
+Four agents are orchestrated by `bioagents/agents/bio_concierge.py`:
+- **BioMCP Agent**: Talks to BioMCP server for biomedical queries
+- **DocMCP Agent**: Talks to DocMCP (LlamaCloud index) for document/RAG workflows
+- **WebSearch Agent**: Searches the public web for general knowledge and current events
+- **ChitChat Agent**: Casual conversation fallback
+
+The BioConcierge router selects exactly one route per query and delegates.
 
 ---
 
@@ -443,6 +528,20 @@ docker-compose exec -T postgres psql -U llama notebookllama < backup.sql
 - After processing a document, expand the "Podcast Configuration" panel
 - Choose "interview" style, "friendly" tone, and set speakers
 - Click the button and listen to the result
+
+### 4. Chat Routing Behavior
+- The Streamlit chat page (`frontend/pages/1_Chat.py`) invokes the BioConcierge router.
+- The router uses tools (route_biomcp, route_llamarag, route_websearch, route_chitchat) to choose one path.
+- For biomedical queries, it picks the BioMCP Agent; for document/RAG, the DocMCP Agent; otherwise websearch or chitchat.
+
+```mermaid
+flowchart TD
+    UI([Chat UI]) --> Concierge[BioConcierge]
+    Concierge -->|route_biomcp| Bio[BioMCP Agent]
+    Concierge -->|route_llamarag| Doc[DocMCP Agent]
+    Concierge -->|route_websearch| Web[WebSearch Agent]
+    Concierge -->|route_chitchat| Chat[ChitChat Agent]
+```
 
 ---
 
