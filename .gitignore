@@ -202,7 +202,6 @@ local/
 **/logs/**
 
 # ignore images & videos
-*.png
 *.jpg
 *.jpeg
 *.gif

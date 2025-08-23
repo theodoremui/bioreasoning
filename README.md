@@ -41,7 +41,8 @@ The Bio Reasoning Project implements an intelligent agent orchestration system d
 
 The system includes a Neo4j-based Knowledge Graph that provides interactive visualization of biomedical knowledge and document relationships. The Knowledge Graph is stored in the local Neo4j database and was originally designed to showcase the NCCN Breast Cancer Guidelines knowledge structure.
 
-**Interactive Visualization**: [Open Knowledge Graph Visualization](docs/neovis.html) (opens in new tab)
+**Interactive Visualization**: [Open Knowledge Graph Visualization](docs/neovis.html) (needs to render html)
+<img src="docs/images/nccn_graph.png" width="70%">
 
 **Note**: This visualization requires a running Neo4j instance with the NCCN database. The graph shows relationships between medical concepts, guidelines, and clinical recommendations extracted from the NCCN Breast Cancer Guidelines document.
 
