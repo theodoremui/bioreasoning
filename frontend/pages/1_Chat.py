@@ -120,11 +120,11 @@ class ChatPage:
                             render_text += f" ({src.source} p.{src.start_page_label})"
                     else:
                         render_text += f" ({src.source})"
-                if hasattr(src, 'snippet') and src.snippet:
+                if hasattr(src, 'snippet') and src.snippet and len(src.snippet) > 1:
                     # Plain text, collapsed whitespace, indent with Markdown blockquote
                     snippet_text = " ".join(str(src.snippet).split())
                     render_text += f"\n> {snippet_text}"
-                if hasattr(src, 'score') and src.score > 0.0:
+                if hasattr(src, 'score') and src.score and src.score > 0.0:
                     render_text += f" ({src.score:.2f})"
                 st.markdown(render_text)
     

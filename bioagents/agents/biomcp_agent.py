@@ -81,67 +81,28 @@ class BioMCPAgent(BaseAgent):
         self._agent: Optional[Agent] = self._create_agent()
 
     def _create_agent(self) -> Agent:
-        """Create the core Agent and instantiate the MCP transport (no connect)."""
-        # Instantiate transport with robust timeouts; connect later in start()
-        self._mcp_server = MCPServerStreamableHttp(
-            name="LlamaCloud MCP Server",
-            params={
-                "url": BIOMCP_URL,
-                "timeout": timedelta(seconds=30),
-                "sse_read_timeout": timedelta(seconds=120),
-                "terminate_on_close": False,
-            },
-            client_session_timeout_seconds=120,
-        )
-
+        """Create the core Agent; MCP transport will be created per operation."""
         return Agent(
             name=self.name,
             model=self.model_name,
             instructions=self.instructions,
             handoff_description=self.handoff_description,
             model_settings=ModelSettings(
-                tool_choice="required"
+                tool_choice="required",
+                temperature=0.01,
+                top_p=1.0,
             ),      
             output_type=AgentResponse,
         )
 
     async def start(self) -> None:
-        if self._started:
-            return
-        try:
-            if self._mcp_server is None:
-                self._agent = self._create_agent()
-            await self._mcp_server.__aenter__()  # type: ignore[arg-type]
-            try:
-                tool_list = await self._mcp_server.list_tools()  # type: ignore[union-attr]
-                print(f"\t# BioMCPAgent tools: {len(tool_list)}: {[tool.name for tool in tool_list]}")
-            except Exception:
-                pass
-            if self._agent is not None:
-                try:
-                    self._agent.mcp_servers = [self._mcp_server]  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-            self._started = True
-        except Exception:
-            if self._mcp_server is not None:
-                try:
-                    await self._mcp_server.__aexit__(None, None, None)
-                except Exception:
-                    pass
-            self._mcp_server = None
-            self._started = False
-            raise
+        """No-op: server is created per operation in achat()."""
+        if self._agent is None:
+            self._agent = self._create_agent()
+        self._started = True
 
     async def aclose(self) -> None:
-        if self._mcp_server is not None:
-            try:
-                await self._mcp_server.__aexit__(None, None, None)
-            except Exception:
-                pass
-            finally:
-                self._mcp_server = None
-        # Keep the Agent instance available; just detach MCP servers
+        # Nothing persistent to close; ensure agent detaches MCP servers.
         if self._agent is not None:
             try:
                 self._agent.mcp_servers = []  # type: ignore[attr-defined]
@@ -162,13 +123,43 @@ class BioMCPAgent(BaseAgent):
     @override
     async def achat(self, query_str: str) -> AgentResponse:
         logger.info(f"=> biomcp: {self.name}: {query_str}")
-
+        # Per-operation MCP server lifecycle to avoid stale event loop bindings
         try:
-            if not self._started:
-                await self.start()
-            response = await super().achat(query_str)
-            response.route = AgentRouteType.BIOMCP
-            return response
+            if self._agent is None:
+                self._agent = self._create_agent()
+
+            server = MCPServerStreamableHttp(
+                name="LlamaCloud MCP Server",
+                params={
+                    "url": BIOMCP_URL,
+                    "timeout": timedelta(seconds=30),
+                    "sse_read_timeout": timedelta(seconds=120),
+                    "terminate_on_close": False,
+                },
+                client_session_timeout_seconds=120,
+            )
+
+            await server.__aenter__()
+            try:
+                try:
+                    tool_list = await server.list_tools()
+                    print(f"\t# BioMCPAgent tools: {len(tool_list)}: {[tool.name for tool in tool_list]}")
+                except Exception:
+                    pass
+
+                try:
+                    self._agent.mcp_servers = [server]  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+
+                response = await super().achat(query_str)
+                response.route = AgentRouteType.BIOMCP
+                return response
+            finally:
+                try:
+                    await server.__aexit__(None, None, None)
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"BioMCP connection failed to {BIOMCP_URL}: {e}")
             return AgentResponse(
