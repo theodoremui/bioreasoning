@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <script src="https://unpkg.com/neovis.js@2.0.2"></script>
+    <style>
+        #viz {
+            width: 100vw;
+            height: 100vh;
+            margin: 0
+        }
+    </style>
+</head>
+
+<body onload="draw()">
+    <div id="viz"></div>
+    <script>
+        let viz;
+        function draw() {
+            const useGdsProperty = true; // set false if using the pure Cypher query below
+
+            const config = {
+                containerId: "viz",
+                neo4j: {
+                    serverUrl: "bolt://localhost:7687",
+                    serverUser: "neo4j",
+                    serverPassword: "Salesforce1",
+                    serverDatabase: "nccn"
+                },
+                labels: {
+                    // Neovis v2: map node properties -> vis-network config
+                    // 'value' controls node size/weight; tie it to 'degree' (or 'pagerank')
+                    [NeoVis.NEOVIS_DEFAULT_CONFIG]: { label: "name", value: "degree" }
+                },
+                relationships: { [NeoVis.NEOVIS_DEFAULT_CONFIG]: {} },
+
+                // Physics tuned so high-value nodes settle toward the middle,
+                // while low-value nodes are pushed out and motion is calmer.
+                visConfig: {
+                    layout: { improvedLayout: true, randomSeed: 42 },
+                    physics: {
+                        solver: "forceAtlas2Based",      // also try "barnesHut"
+                        timestep: 0.2,
+                        maxVelocity: 10,
+                        stabilization: { iterations: 700 },
+                        forceAtlas2Based: {
+                            // more negative repulsion spreads the network
+                            gravitationalConstant: -10,
+                            // less pull to exact center (hubs still gravitate via many edges)
+                            centralGravity: 0.005,
+                            // longer springs emphasize hub “pull” on neighbors
+                            springLength: 60,
+                            springConstant: 0.05,
+                            damping: 0.6,
+                            avoidOverlap: 0.5
+                        }
+                    }
+                },
+
+                // If you used GDS mutate (A), this is fine:
+                initialCypher: useGdsProperty
+                    ? "MATCH (n)-[r]-(m) RETURN n,r,m LIMIT 2000"
+                    // If you used pure Cypher (B), return 'value' per node inline:
+                    : "MATCH (n) WITH n, COUNT { (n)--() } AS degree " +
+                    "MATCH (n)-[r]-(m) " +
+                    "RETURN n{ .*, value: degree } AS n, r, m LIMIT 2000"
+            };
+
+            viz = new NeoVis.default(config);
+            viz.render();
+        }
+    </script>
+</body>
+
+</html>

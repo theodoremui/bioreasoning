@@ -10,6 +10,7 @@ A comprehensive biomedical reasoning agent system that intelligently routes quer
 
 ## Table of Contents
 - [Overview](#overview)
+- [Knowledge Graph Visualization](#knowledge-graph-visualization)
 - [System Architecture](#system-architecture)
 - [Installation](#installation)
 - [Running the System](#running-the-system)
@@ -33,6 +34,17 @@ The Bio Reasoning Project implements an intelligent agent orchestration system d
 - **Citation Support**: Provides source citations for research and web-based responses
 - **Streamlit Interface**: User-friendly web interface for interaction
 - **Model Selection**: Support for multiple OpenAI models (GPT-4o, GPT-4.1 variants)
+
+---
+
+## Knowledge Graph Visualization
+
+The system includes a Neo4j-based Knowledge Graph that provides interactive visualization of biomedical knowledge and document relationships. The Knowledge Graph is stored in the local Neo4j database and was originally designed to showcase the NCCN Breast Cancer Guidelines knowledge structure.
+
+**Interactive Visualization**: [Open Knowledge Graph Visualization](docs/neovis.html) (opens in new tab)
+
+**Note**: This visualization requires a running Neo4j instance with the NCCN database. The graph shows relationships between medical concepts, guidelines, and clinical recommendations extracted from the NCCN Breast Cancer Guidelines document.
+
 
 ---
 
