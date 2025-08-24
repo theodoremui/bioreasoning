@@ -8,88 +8,13 @@ import json
 import networkx as nx
 import os
 import re
-import sys
-import time
-import threading
 import warnings
+
+# Import the refactored spinner from utils
+from bioagents.utils.spinner import ProgressSpinner as Spinner
 
 # Global constants
 NCCN_COMMUNITIES_CACHE_FILE = "data/nccn_communities.json"
-
-class Spinner:
-    """Simple text-based animated spinner for showing progress with timer"""
-    
-    def __init__(self, message="Processing", spinner_chars="|/-\\"):
-        self.message = message
-        self.spinner_chars = spinner_chars
-        self.running = False
-        self.thread = None
-        self.start_time = None
-        
-    def _format_elapsed_time(self, elapsed_seconds):
-        """Format elapsed time as MM:SS"""
-        minutes = int(elapsed_seconds // 60)
-        seconds = int(elapsed_seconds % 60)
-        return f"{minutes:02d}:{seconds:02d}"
-        
-    def _spin(self):
-        """Internal method to animate the spinner with timer"""
-        i = 0
-        while self.running:
-            char = self.spinner_chars[i % len(self.spinner_chars)]
-            elapsed = time.time() - self.start_time
-            elapsed_str = self._format_elapsed_time(elapsed)
-            
-            # Create the spinner line with timer
-            spinner_line = f"\r{self.message} {char} [{elapsed_str}]"
-            sys.stdout.write(spinner_line)
-            sys.stdout.flush()
-            time.sleep(0.1)
-            i += 1
-            
-    def start(self):
-        """Start the spinner animation"""
-        if not self.running:
-            self.running = True
-            self.start_time = time.time()
-            self.thread = threading.Thread(target=self._spin)
-            self.thread.daemon = True
-            self.thread.start()
-            
-    def stop(self, final_message=None):
-        """Stop the spinner and optionally show a final message"""
-        if self.running:
-            self.running = False
-            if self.thread:
-                self.thread.join()
-            
-            # Calculate final elapsed time
-            if self.start_time:
-                elapsed = time.time() - self.start_time
-                elapsed_str = self._format_elapsed_time(elapsed)
-            else:
-                elapsed_str = "00:00"
-            
-            # Clear the spinner line (make it long enough to clear timer too)
-            clear_length = len(self.message) + 20  # Extra space for timer and spinner
-            sys.stdout.write("\r" + " " * clear_length + "\r")
-            
-            if final_message:
-                print(f"{final_message} [{elapsed_str}]")
-            sys.stdout.flush()
-            
-    def __enter__(self):
-        """Context manager entry"""
-        self.start()
-        return self
-        
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit"""
-        if exc_type is None:
-            self.stop(f"✓ {self.message}: done!")
-        else:
-            self.stop(f"✗ {self.message}: failed!")
-        return False
 
 # Suppress deprecation warning from Setuptools about pkg_resources used in graspologic
 warnings.filterwarnings(

@@ -1,6 +1,16 @@
 import os
 import pytest
-from qdrant_client import QdrantClient
+
+try:
+    from qdrant_client import QdrantClient
+    QDRANT_AVAILABLE = True
+except ImportError:
+    from typing import TYPE_CHECKING
+    if TYPE_CHECKING:
+        from qdrant_client import QdrantClient
+    else:
+        QdrantClient = None
+    QDRANT_AVAILABLE = False
 
 from dotenv import load_dotenv, find_dotenv
 
@@ -12,11 +22,14 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 
 
 @pytest.fixture(scope="module")
-def qdrant_client() -> QdrantClient:
+def qdrant_client() -> "QdrantClient":
     """Provide a QdrantClient if environment is configured; otherwise skip.
 
     Skips the test module when QDRANT_URL is not set or connection fails.
     """
+    if not QDRANT_AVAILABLE:
+        pytest.skip("qdrant_client is not installed; skipping Qdrant integration tests")
+    
     if not QDRANT_URL:
         pytest.skip("QDRANT_URL is not set; skipping Qdrant integration tests")
 
@@ -30,7 +43,7 @@ def qdrant_client() -> QdrantClient:
 
 
 @pytest.mark.integration
-def test_get_collections_non_empty(qdrant_client: QdrantClient) -> None:
+def test_get_collections_non_empty(qdrant_client: "QdrantClient") -> None:
     """Ensure at least one collection exists on the target Qdrant instance."""
     resp = qdrant_client.get_collections()
     # Support both SDK response shapes

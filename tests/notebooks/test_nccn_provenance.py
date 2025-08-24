@@ -6,7 +6,7 @@ from typing import Any
 
 def _load_module():
     root = Path(__file__).resolve().parents[2]
-    module_path = root / "notebooks" / "nccn-kg.py"
+    module_path = root / "bioagents" / "nccn-kg.py"
     spec = importlib.util.spec_from_file_location("nccn_kg", str(module_path))
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

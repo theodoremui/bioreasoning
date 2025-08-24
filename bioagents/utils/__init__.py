@@ -114,6 +114,17 @@ if API_CLIENTS_AVAILABLE:
 # Add audio management utilities
 from .audio_manager import AudioFileManager, AudioFileProcessor, AudioFileError
 
+# Add spinner utilities
+from .spinner import (
+    ProgressSpinner,
+    Spinner,  # Alias for backward compatibility
+    OutputWriter,
+    ConsoleOutputWriter,
+    Timer,
+    SpinnerAnimation,
+    spinner_context,
+)
+
 __all__ = [
     # Async utilities
     "run_async",
@@ -122,4 +133,12 @@ __all__ = [
     "AudioFileManager",
     "AudioFileProcessor",
     "AudioFileError",
+    # Spinner utilities
+    "ProgressSpinner",
+    "Spinner",
+    "OutputWriter",
+    "ConsoleOutputWriter",
+    "Timer",
+    "SpinnerAnimation",
+    "spinner_context",
 ]

@@ -10,10 +10,10 @@ from pathlib import Path
 
 def _load_graphrag_store():
     root = Path(__file__).resolve().parents[2]
-    module_path = root / "notebooks" / "nccn-kg.py"
+    module_path = root / "bioagents" / "nccn-kg.py"
     spec = importlib.util.spec_from_file_location("nccn_kg", str(module_path))
     if spec is None or spec.loader is None:
-        raise RuntimeError("Unable to create spec for notebooks/nccn-kg.py")
+        raise RuntimeError("Unable to create spec for bioagents/nccn-kg.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.GraphRAGStore

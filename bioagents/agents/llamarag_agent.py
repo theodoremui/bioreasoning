@@ -21,7 +21,18 @@ from bioagents.commons import classproperty
 from agents.tracing import set_tracing_disabled
 from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
 from llama_index.core.base.response.schema import Response
-from llama_index.postprocessor.cohere_rerank import CohereRerank
+try:
+    from llama_index.postprocessor.cohere_rerank import CohereRerank
+except ImportError:
+    try:
+        from llama_index.core.postprocessor.cohere_rerank import CohereRerank
+    except ImportError:
+        # Fallback if CohereRerank is not available
+        from typing import TYPE_CHECKING
+        if TYPE_CHECKING:
+            from llama_index.core.postprocessor.cohere_rerank import CohereRerank
+        else:
+            CohereRerank = None
 
 from bioagents.agents.common import AgentResponse, AgentRouteType
 from bioagents.models.source import Source
@@ -77,11 +88,11 @@ class LlamaRAGAgent(BaseAgent):
 
     _index: Optional[LlamaCloudIndex] = None
     _query_engine: Optional[Any] = None
-    _reranker: Optional[CohereRerank] = None
+    _reranker: Optional["CohereRerank"] = None
 
     @classproperty
-    def reranker(cls) -> Optional[CohereRerank]:
-        if cls._reranker is None:
+    def reranker(cls) -> Optional["CohereRerank"]:
+        if cls._reranker is None and CohereRerank is not None:
             try:
                 if COHERE_API_KEY:
                     cls._reranker = CohereRerank(
