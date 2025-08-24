@@ -1,11 +1,11 @@
-from dotenv import load_dotenv
 import json
 import os
+from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field, model_validator
+from dotenv import load_dotenv
 from llama_index.core.llms import ChatMessage
 from llama_index.llms.openai import OpenAIResponses
-from typing import List, Tuple, Optional
+from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
 
 load_dotenv()

@@ -7,23 +7,23 @@
 # Date: 2025-08-16
 # ------------------------------------------------------------------------------
 
-from agents import Agent
 import asyncio
 import os
-from typing import override, Optional
-from loguru import logger
+from typing import Optional, override
 
 from agents import Agent, Runner
 from agents.mcp import MCPServerStreamableHttp
 from agents.model_settings import ModelSettings
 from agents.tracing import set_tracing_disabled
+from loguru import logger
 
 set_tracing_disabled(disabled=True)
 
+from datetime import timedelta
+
+from bioagents.agents.base_agent import BaseAgent
 from bioagents.agents.common import AgentResponse, AgentRouteType
 from bioagents.models.llms import LLM
-from bioagents.agents.base_agent import BaseAgent
-from datetime import timedelta
 
 DOCMCP_URL = os.getenv("DOCMCP_SERVER_URL", "http://localhost:8130/mcp/")
 

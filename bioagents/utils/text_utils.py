@@ -28,18 +28,18 @@
 #     'short text'
 ###############################################################################
 
-from typing import List, Tuple
 import re
+from typing import List, Tuple
 
-    
+
 def clean_text(text_to_clean: str) -> str:
     """
     Clean text by removing Markdown headings and collapsing whitespace.
     This is used to clean up the text before generating a snippet.
-    
+
     Args:
         text_to_clean: The text to clean.
-        
+
     Returns:
         The cleaned text.
     """
@@ -47,6 +47,7 @@ def clean_text(text_to_clean: str) -> str:
     cleaned = re.sub(r"(?m)^\s*#{1,6}\s*", "", text_to_clean)
     # Collapse whitespace/newlines into single spaces
     return " ".join(cleaned.split())
+
 
 def make_contextual_snippet(
     text: str,
@@ -87,7 +88,7 @@ def make_contextual_snippet(
         return ""
 
     text_stripped = text.strip()
-    
+
     if len(text_stripped) <= max_length:
         return clean_text(text_stripped)
 

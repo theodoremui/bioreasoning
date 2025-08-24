@@ -1,11 +1,11 @@
-from dotenv import load_dotenv
 import os
+from typing import Union, cast
 
-from llama_index.core.query_engine import CitationQueryEngine
+from dotenv import load_dotenv
 from llama_index.core.base.response.schema import Response
+from llama_index.core.query_engine import CitationQueryEngine
 from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
 from llama_index.llms.openai import OpenAIResponses
-from typing import Union, cast
 
 load_dotenv()
 

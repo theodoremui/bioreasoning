@@ -8,9 +8,9 @@ Part of the bioagents package utilities.
 """
 
 import asyncio
+import concurrent.futures
 import sys
 from typing import Any, Callable, Coroutine
-import concurrent.futures
 
 
 def run_async(coro: Coroutine[Any, Any, Any]) -> Any:

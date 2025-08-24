@@ -10,8 +10,8 @@ This module contains thorough tests for all spinner components including:
 - Thread safety
 - Error handling
 
-Author: AI Assistant
-Date: 2025-01-27
+Author: Theodore Mui
+Date: 2025-08-24
 """
 
 import pytest

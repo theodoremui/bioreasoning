@@ -8,11 +8,12 @@
 # Date: 2025-07-20
 # ------------------------------------------------------------------------------
 
+import mimetypes
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union
-from pydantic import BaseModel, Field, field_validator, computed_field
-import mimetypes
+
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 
 class FileInfo(BaseModel):

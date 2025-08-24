@@ -1,15 +1,17 @@
 import os
+
 from dotenv import load_dotenv
 
 # Load environment variables first
 load_dotenv()
 
-from mcp.server.fastmcp import FastMCP
-from typing import List, Union, Literal
+from typing import List, Literal, Union
 
-from bioagents.docs.querying import query_index
-from bioagents.docs.processing import process_file
+from mcp.server.fastmcp import FastMCP
+
 from bioagents.docs.mindmap import get_mind_map
+from bioagents.docs.processing import process_file
+from bioagents.docs.querying import query_index
 
 mcp: FastMCP = FastMCP(name="MCP For NotebookLM")
 mcp.settings.port = int(os.getenv("DOCMCP_PORT", "8131"))

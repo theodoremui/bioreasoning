@@ -9,18 +9,20 @@
 
 import asyncio
 import hashlib
-from datetime import datetime
 import os
-from typing import List, override, Optional, Any
-from loguru import logger
-from pydantic import BaseModel
+from datetime import datetime
+from typing import Any, List, Optional, override
 
 from agents import Agent, Runner, function_tool
 from agents.model_settings import ModelSettings
-from bioagents.commons import classproperty
 from agents.tracing import set_tracing_disabled
-from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
 from llama_index.core.base.response.schema import Response
+from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
+from loguru import logger
+from pydantic import BaseModel
+
+from bioagents.commons import classproperty
+
 try:
     from llama_index.postprocessor.cohere_rerank import CohereRerank
 except ImportError:
@@ -29,16 +31,17 @@ except ImportError:
     except ImportError:
         # Fallback if CohereRerank is not available
         from typing import TYPE_CHECKING
+
         if TYPE_CHECKING:
             from llama_index.core.postprocessor.cohere_rerank import CohereRerank
         else:
             CohereRerank = None
 
+from bioagents.agents.base_agent import BaseAgent
 from bioagents.agents.common import AgentResponse, AgentRouteType
+from bioagents.models.llms import LLM
 from bioagents.models.source import Source
 from bioagents.utils.text_utils import make_title_and_snippet
-from bioagents.models.llms import LLM
-from bioagents.agents.base_agent import BaseAgent
 
 set_tracing_disabled(disabled=True)
 

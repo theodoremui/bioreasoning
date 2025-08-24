@@ -7,16 +7,16 @@
 # Date: 2025-04-26
 # ------------------------------------------------------------------------------
 
-from agents import Agent, ModelSettings, Runner, Tool, trace, gen_trace_id
-from agents.tool import WebSearchTool
-from loguru import logger
 import datetime
 from typing import override
 
-from bioagents.agents.common import AgentRouteType, AgentResponse
-from bioagents.models.llms import LLM
+from agents import Agent, ModelSettings, Runner, Tool, gen_trace_id, trace
+from agents.tool import WebSearchTool
+from loguru import logger
+
 from bioagents.agents.base_agent import BaseAgent
-from bioagents.agents.common import AgentResponse
+from bioagents.agents.common import AgentResponse, AgentRouteType
+from bioagents.models.llms import LLM
 
 INSTRUCTIONS = f"""
 You are an expert about the real time web and the latest information & news about general topics.

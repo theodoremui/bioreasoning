@@ -36,17 +36,17 @@ Usage:
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union, AsyncIterator
 from dataclasses import dataclass
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from openai import AsyncOpenAI, OpenAI
 from elevenlabs import AsyncElevenLabs
+from openai import AsyncOpenAI, OpenAI
 from tenacity import RetryError
 
 from .retry import (
+    RateLimitAwareStrategy,
     RetryConfig,
     RetryContext,
-    RateLimitAwareStrategy,
     RetryStrategies,
     retry_with_rate_limit_awareness,
 )
