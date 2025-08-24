@@ -18,7 +18,7 @@ def main():
     load_dotenv(find_dotenv())
 
     LLAMACLOUD_INDEX_NAME = os.getenv("LLAMACLOUD_INDEX_NAME")
-    
+
     client = LlamaCloud(token=os.getenv("LLAMACLOUD_API_KEY"))
 
     # Run the embedding setup app to get the embedding configuration

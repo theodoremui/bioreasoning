@@ -15,6 +15,7 @@ mcp: FastMCP = FastMCP(name="MCP For NotebookLM")
 mcp.settings.port = int(os.getenv("DOCMCP_PORT", "8131"))
 mcp.settings.host = "localhost"
 
+
 @mcp.tool(
     name="process_file_tool",
     description="This tool is useful to process files and produce summaries, question-answers and highlights.",
@@ -46,7 +47,10 @@ async def get_mind_map_tool(
         return f"Sorry, mind map creation failed. Reason: {e}"
 
 
-@mcp.tool(name="query_index_tool", description="Get knowledge from ingested documents in LlamaCloud index.")
+@mcp.tool(
+    name="query_index_tool",
+    description="Get knowledge from ingested documents in LlamaCloud index.",
+)
 async def query_index_tool(question: str) -> str:
     try:
         response = await query_index(question=question)

@@ -1,16 +1,16 @@
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # bio_concierge.py
-# 
+#
 # This is a "Bio Reasoning Concierge" that triage across multiple agents to answer
 # a user's question.  This agent orchestrates across the following subagents:
-# 
+#
 # 1. Chit Chat Agent
 # 2. Web Reasoning Agent
 # 3. Bio MCP Agent
-# 
+#
 # Author: Theodore Mui
 # Date: 2025-04-26
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 import asyncio
 from agents import (
@@ -31,10 +31,12 @@ from bioagents.agents.common import AgentResponse, AgentRouteType
 from bioagents.models.llms import LLM
 from bioagents.agents.web_agent import WebReasoningAgent
 
+
 class BioConciergeAgent(BaseAgent):
     def __init__(
-        self, name: str, 
-        model_name: str=LLM.GPT_4_1_MINI, 
+        self,
+        name: str,
+        model_name: str = LLM.GPT_4_1_MINI,
     ):
         instructions = (
             "You are a bio-reasoning agent that routes queries to appropriate specialists. "
@@ -57,7 +59,7 @@ class BioConciergeAgent(BaseAgent):
         self._web_agent = WebReasoningAgent(name="Web Reasoning Agent")
         self._biomcp_agent = BioMCPAgent(name="Bio MCP Agent")
         self._llamarag_agent = LlamaRAGAgent(name="LlamaCloud RAG Agent")
-        self._llamamcp_agent = LlamaMCPAgent(name="LlamaCloud MCP Agent")        
+        self._llamamcp_agent = LlamaMCPAgent(name="LlamaCloud MCP Agent")
         # Start is deferred; each wrapper's achat will start on demand
 
         # Router tools: each tool encodes a routing decision label. The Runner will
@@ -107,15 +109,19 @@ class BioConciergeAgent(BaseAgent):
             instructions=router_instructions,
             handoffs=[
                 self._llamarag_agent._agent,
-                self._biomcp_agent._agent if hasattr(self._biomcp_agent, "_agent") else None,
+                (
+                    self._biomcp_agent._agent
+                    if hasattr(self._biomcp_agent, "_agent")
+                    else None
+                ),
                 self._web_agent._agent,
                 self._chit_chat_agent._agent,
             ],
             tools=[
-                # route_llamamcp, 
-                route_llamarag, 
-                route_biomcp, 
-                route_websearch, 
+                # route_llamamcp,
+                route_llamarag,
+                route_biomcp,
+                route_websearch,
                 route_chitchat,
             ],
             model_settings=ModelSettings(
@@ -153,29 +159,36 @@ class BioConciergeAgent(BaseAgent):
             return await method(*args, **kwargs)
         return method(*args, **kwargs)
 
-    def _construct_response_with_agent_info(self, run_result, response_text: str, route: AgentRouteType) -> AgentResponse:
+    def _construct_response_with_agent_info(
+        self, run_result, response_text: str, route: AgentRouteType
+    ) -> AgentResponse:
         """Construct response with agent-specific information and routing."""
         # Extract citations from run_result
         citations = []
         for item in run_result.new_items:
-            if item.type == 'message_output_item':
+            if item.type == "message_output_item":
                 for content in item.raw_item.content:
-                    if hasattr(content, 'annotations'):
+                    if hasattr(content, "annotations"):
                         for annotation in content.annotations:
-                            if annotation.type == 'url_citation':
+                            if annotation.type == "url_citation":
                                 from bioagents.models.source import Source
-                                citations.append(Source(
-                                    url=annotation.url,
-                                    title=annotation.title,
-                                    snippet=content.text[annotation.start_index:annotation.end_index],
-                                    source="web"
-                                ))
-        
+
+                                citations.append(
+                                    Source(
+                                        url=annotation.url,
+                                        title=annotation.title,
+                                        snippet=content.text[
+                                            annotation.start_index : annotation.end_index
+                                        ],
+                                        source="web",
+                                    )
+                                )
+
         return AgentResponse(
             response_str=response_text,
             citations=citations,
             judge_response="",
-            route=route
+            route=route,
         )
 
     @override
@@ -198,29 +211,53 @@ class BioConciergeAgent(BaseAgent):
         if ":" in prefixed_text:
             lower = prefixed_text.lower()
             if lower.startswith("web reasoning agent:"):
-                return self._construct_response_with_agent_info(route_result, prefixed_text, AgentRouteType.WEBSEARCH)
+                return self._construct_response_with_agent_info(
+                    route_result, prefixed_text, AgentRouteType.WEBSEARCH
+                )
             if lower.startswith("chit chat agent:"):
-                return self._construct_response_with_agent_info(route_result, prefixed_text, AgentRouteType.CHITCHAT)
-            if lower.startswith("bio mcp agent:") or lower.startswith("biomcp") or lower.startswith("biomedical"):
-                return self._construct_response_with_agent_info(route_result, prefixed_text, AgentRouteType.BIOMCP)
+                return self._construct_response_with_agent_info(
+                    route_result, prefixed_text, AgentRouteType.CHITCHAT
+                )
+            if (
+                lower.startswith("bio mcp agent:")
+                or lower.startswith("biomcp")
+                or lower.startswith("biomedical")
+            ):
+                return self._construct_response_with_agent_info(
+                    route_result, prefixed_text, AgentRouteType.BIOMCP
+                )
             # Default to concierge reasoning route
-            return self._construct_response_with_agent_info(route_result, prefixed_text, AgentRouteType.REASONING)
+            return self._construct_response_with_agent_info(
+                route_result, prefixed_text, AgentRouteType.REASONING
+            )
 
         # 2) Delegate to the selected wrapper's achat
         if "web reasoning agent" in route_label or "websearch" in route_label:
-            wrapper_response = await self._maybe_call_async(self._web_agent.achat, query_str)
+            wrapper_response = await self._maybe_call_async(
+                self._web_agent.achat, query_str
+            )
             wrapper_response.route = AgentRouteType.WEBSEARCH
             return wrapper_response
         if "llama" in route_label and "rag" in route_label:
-            wrapper_response = await self._maybe_call_async(self._llamarag_agent.achat, query_str)
+            wrapper_response = await self._maybe_call_async(
+                self._llamarag_agent.achat, query_str
+            )
             wrapper_response.route = AgentRouteType.LLAMARAG
             return wrapper_response
-        if "bio mcp" in route_label or "biomcp" in route_label or "biomedical" in route_label:
-            wrapper_response = await self._maybe_call_async(self._biomcp_agent.achat, query_str)
+        if (
+            "bio mcp" in route_label
+            or "biomcp" in route_label
+            or "biomedical" in route_label
+        ):
+            wrapper_response = await self._maybe_call_async(
+                self._biomcp_agent.achat, query_str
+            )
             wrapper_response.route = AgentRouteType.BIOMCP
             return wrapper_response
         if "llama" in route_label and "mcp" in route_label:
-            wrapper_response = await self._maybe_call_async(self._llamamcp_agent.achat, query_str)
+            wrapper_response = await self._maybe_call_async(
+                self._llamamcp_agent.achat, query_str
+            )
             wrapper_response.route = AgentRouteType.LLAMAMCP
             return wrapper_response
 
@@ -230,9 +267,10 @@ class BioConciergeAgent(BaseAgent):
         wrapper_response.route = AgentRouteType.CHITCHAT
         return wrapper_response
 
-#------------------------------------------------
+
+# ------------------------------------------------
 # Example usage
-#------------------------------------------------
+# ------------------------------------------------
 if __name__ == "__main__":
     import asyncio
     import time
@@ -244,7 +282,9 @@ if __name__ == "__main__":
             print(f"{str(resp)} ({time.time() - start_time:.1f}s)")
 
             start_time = time.time()
-            resp = await agent.achat("What is the latest news in the field of genetics?")
+            resp = await agent.achat(
+                "What is the latest news in the field of genetics?"
+            )
             print(f"{str(resp)} ({time.time() - start_time:.1f}s)")
 
             start_time = time.time()

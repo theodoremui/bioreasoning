@@ -6,13 +6,20 @@ from workflows.events import StartEvent, StopEvent, Event
 from workflows.resource import Resource
 from llama_index.tools.mcp import BasicMCPClient
 from typing import Annotated, List, Union
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 # Allow long-running tools (e.g., LlamaCloud extraction) to complete without client timeout.
 # Configurable via MCP_CLIENT_TIMEOUT env var; default to 900s (15 minutes).
 MCP_CLIENT_TIMEOUT = int(os.getenv("MCP_CLIENT_TIMEOUT", "900"))
 DOCMCP_SERVER_URL = os.getenv("DOCMCP_SERVER_URL", "http://localhost:8130/mcp")
-DOCMCP_CLIENT = BasicMCPClient(command_or_url=DOCMCP_SERVER_URL, timeout=MCP_CLIENT_TIMEOUT)
+DOCMCP_CLIENT = BasicMCPClient(
+    command_or_url=DOCMCP_SERVER_URL, timeout=MCP_CLIENT_TIMEOUT
+)
 
 # Retry configuration for MCP tool calls
 MCP_CALL_MAX_ATTEMPTS = int(os.getenv("MCP_CALL_MAX_ATTEMPTS", "3"))
@@ -69,7 +76,9 @@ class NotebookLMWorkflow(Workflow):
         )
         try:
             result = await call_mcp_tool_with_retry(
-                mcp_client, tool_name="process_file_tool", arguments={"filename": ev.file}
+                mcp_client,
+                tool_name="process_file_tool",
+                arguments={"filename": ev.file},
             )
             split_result = result.content[0].text.split("\n%separator%\n")
             if len(split_result) > 1:
@@ -91,7 +100,7 @@ class NotebookLMWorkflow(Workflow):
                 )
         except Exception as e:
             print(f"⚠️  MCP client error: {e}")
-            
+
         return NotebookOutputEvent(
             mind_map="Ensure MCP server - process_file_tool - is running on port 8131.😭",
             md_content="",

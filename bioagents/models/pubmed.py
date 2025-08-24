@@ -53,7 +53,9 @@ class PubMedArticleDetails(BaseModel):
     abstract: str = Field(default="", description="The abstract of the article")
     full_text: str = Field(default="", description="The full text of the article")
     pubmed_url: str = Field(default="", description="The URL of the article on PubMed")
-    pmc_url: str = Field(default="", description="The URL of the article on PubMed Central")
+    pmc_url: str = Field(
+        default="", description="The URL of the article on PubMed Central"
+    )
 
 
 class PubMedParser:
@@ -82,9 +84,9 @@ class PubMedParser:
         if not authors_str:
             return []
         authors: List[str] = []
-        for author in authors_str.split(','):
+        for author in authors_str.split(","):
             author = author.strip()
-            if author and author != '...':
+            if author and author != "...":
                 authors.append(author)
         return authors
 
@@ -104,7 +106,7 @@ class PubMedParser:
         records = re.split(cls.RECORD_SPLIT_PATTERN, text)
 
         for record in records:
-            if not record or 'Pmid:' not in record:
+            if not record or "Pmid:" not in record:
                 continue
             try:
                 pmid_match = re.search(r"Pmid:\s*(\d+)", record)
@@ -113,28 +115,46 @@ class PubMedParser:
                 pmcid_match = re.search(r"Pmcid:\s*(\w+)", record)
                 pmcid = pmcid_match.group(1) if pmcid_match else ""
 
-                title_match = re.search(r"Title:\s*\n?(.*?)(?=\n(?:Journal|Conference):)", record, re.DOTALL)
-                title = title_match.group(1).strip().replace('\n', ' ') if title_match else ""
+                title_match = re.search(
+                    r"Title:\s*\n?(.*?)(?=\n(?:Journal|Conference):)", record, re.DOTALL
+                )
+                title = (
+                    title_match.group(1).strip().replace("\n", " ")
+                    if title_match
+                    else ""
+                )
 
                 journal_match = re.search(r"Journal:\s*(.*?)(?=\n)", record)
                 conference_match = re.search(r"Conference:\s*(.*?)(?=\n)", record)
                 journal = journal_match.group(1).strip() if journal_match else ""
-                conference = conference_match.group(1).strip() if conference_match else ""
+                conference = (
+                    conference_match.group(1).strip() if conference_match else ""
+                )
 
                 date_match = re.search(r"Date:\s*(.*?)(?=\n|$)", record)
-                year = cls._extract_year_from_date(date_match.group(1).strip()) if date_match else 0
+                year = (
+                    cls._extract_year_from_date(date_match.group(1).strip())
+                    if date_match
+                    else 0
+                )
 
                 doi_match = re.search(r"Doi:\s*(.*?)(?=\n)", record)
                 doi = doi_match.group(1).strip() if doi_match else ""
 
-                abstract_match = re.search(r"Abstract:\s*\n?(.*?)(?=\nPubmed Url:|$)", record, re.DOTALL)
+                abstract_match = re.search(
+                    r"Abstract:\s*\n?(.*?)(?=\nPubmed Url:|$)", record, re.DOTALL
+                )
                 abstract = abstract_match.group(1).strip() if abstract_match else ""
 
                 url_match = re.search(r"Pubmed Url:\s*(.*?)(?=\n)", record)
                 url = url_match.group(1).strip() if url_match else ""
 
                 authors_match = re.search(r"Authors:\s*(.*?)(?=\n|$)", record)
-                authors = cls._split_authors(authors_match.group(1).strip()) if authors_match else []
+                authors = (
+                    cls._split_authors(authors_match.group(1).strip())
+                    if authors_match
+                    else []
+                )
 
                 article = PubMedArticle(
                     pmid=pmid,
@@ -195,13 +215,17 @@ class PubMedParser:
         if journal_match:
             article_data["journal"] = journal_match.group(1).strip()
         else:
-            conference_match = re.search(r"Conference:\s*(.*?)(?=\n)", text, re.IGNORECASE)
+            conference_match = re.search(
+                r"Conference:\s*(.*?)(?=\n)", text, re.IGNORECASE
+            )
             if conference_match:
                 article_data["conference"] = conference_match.group(1).strip()
 
         date_match = re.search(r"Date:\s*(.*?)(?=\n|$)", text, re.IGNORECASE)
         if date_match:
-            article_data["year"] = cls._extract_year_from_date(date_match.group(1).strip())
+            article_data["year"] = cls._extract_year_from_date(
+                date_match.group(1).strip()
+            )
 
         abstract_match = re.search(
             r"Abstract:\s*\n?(.*?)(?=\n(?:Full Text|Pubmed Url|Pmc Url|Authors|$))",
@@ -223,11 +247,15 @@ class PubMedParser:
             full_text = re.sub(r"\n\s*\n\s*\n+", "\n\n", full_text)
             article_data["full_text"] = full_text
 
-        pubmed_url_match = re.search(r"Pubmed Url:\s*(https?://[^\s\n]+)", text, re.IGNORECASE)
+        pubmed_url_match = re.search(
+            r"Pubmed Url:\s*(https?://[^\s\n]+)", text, re.IGNORECASE
+        )
         if pubmed_url_match:
             article_data["pubmed_url"] = pubmed_url_match.group(1).strip()
 
-        pmc_url_match = re.search(r"Pmc Url:\s*(https?://[^\s\n]+)", text, re.IGNORECASE)
+        pmc_url_match = re.search(
+            r"Pmc Url:\s*(https?://[^\s\n]+)", text, re.IGNORECASE
+        )
         if pmc_url_match:
             article_data["pmc_url"] = pmc_url_match.group(1).strip()
 
@@ -270,5 +298,3 @@ __all__ = [
     "parse_articles",
     "parse_article_details",
 ]
-
-

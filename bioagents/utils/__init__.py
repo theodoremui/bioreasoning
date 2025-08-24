@@ -1,11 +1,11 @@
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # __init__.py
-# 
+#
 # Utils package for bioagents.
-# 
+#
 # Author: Theodore Mui
 # Date: 2025-01-20
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 """
 BioAgents Utils Package
@@ -51,6 +51,7 @@ try:
         get_client_status,
         get_elevenlabs_credit_info,
     )
+
     API_CLIENTS_AVAILABLE = True
 except ImportError as e:
     # Set these to None if dependencies are not available
@@ -75,7 +76,7 @@ except ImportError as e:
 __all__ = [
     # Retry utilities (always available)
     "RetryConfig",
-    "RetryStrategy", 
+    "RetryStrategy",
     "ExponentialBackoffStrategy",
     "RateLimitAwareStrategy",
     "RetryContext",
@@ -89,23 +90,25 @@ __all__ = [
 
 # Add API clients if available
 if API_CLIENTS_AVAILABLE:
-    __all__.extend([
-        "BaseAPIClient",
-        "RobustOpenAIClient",
-        "RobustElevenLabsClient",
-        "APICallResult",
-        "OpenAIAPIError",
-        "ElevenLabsAPIError",
-        "RateLimitError",
-        "AuthenticationError",
-        "ValidationError",
-        "QuotaExceededError",
-        "create_openai_client",
-        "create_elevenlabs_client",
-        "check_api_connection",
-        "get_client_status",
-        "get_elevenlabs_credit_info",
-    ]) 
+    __all__.extend(
+        [
+            "BaseAPIClient",
+            "RobustOpenAIClient",
+            "RobustElevenLabsClient",
+            "APICallResult",
+            "OpenAIAPIError",
+            "ElevenLabsAPIError",
+            "RateLimitError",
+            "AuthenticationError",
+            "ValidationError",
+            "QuotaExceededError",
+            "create_openai_client",
+            "create_elevenlabs_client",
+            "check_api_connection",
+            "get_client_status",
+            "get_elevenlabs_credit_info",
+        ]
+    )
 
 
 # Add audio management utilities
@@ -113,10 +116,10 @@ from .audio_manager import AudioFileManager, AudioFileProcessor, AudioFileError
 
 __all__ = [
     # Async utilities
-    "run_async", 
+    "run_async",
     "create_async_wrapper",
     # Audio management
     "AudioFileManager",
-    "AudioFileProcessor", 
-    "AudioFileError"
-] 
+    "AudioFileProcessor",
+    "AudioFileError",
+]

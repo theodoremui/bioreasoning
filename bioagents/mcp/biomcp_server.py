@@ -1,11 +1,11 @@
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # biomcp_server.py
-# 
+#
 # This file provides the MCP server for the BioMCP agent.
-# 
+#
 # Author: Theodore Mui
 # Date: 2025-06-11
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 import asyncio
 from mcp.client.session import ClientSession
@@ -27,15 +27,17 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.server import Settings
 
 from dotenv import load_dotenv, find_dotenv
+
 _ = load_dotenv(find_dotenv())
 
 # Create server
 mcp = FastMCP("BioMCP Server")
 mcp.settings.port = int(os.environ.get("BIOMCP_PORT", "8132"))
 
-#--------------------------------
+# --------------------------------
 # Tools
-#--------------------------------
+# --------------------------------
+
 
 @mcp.tool()
 async def list_tools() -> list[str]:
@@ -44,14 +46,13 @@ async def list_tools() -> list[str]:
     """
 
     logger.info("Listing available tools")
-    
+
     server_params = StdioServerParameters(
-        command="uv",
-        args=["run", "--with", "biomcp-python", "biomcp", "run"]
+        command="uv", args=["run", "--with", "biomcp-python", "biomcp", "run"]
     )
     async with (
         stdio_client(server_params) as (read, write),
-        ClientSession(read, write) as session
+        ClientSession(read, write) as session,
     ):
         await session.initialize()
 
@@ -63,6 +64,7 @@ async def list_tools() -> list[str]:
             logger.error(f"Error: {e}")
             response_str = f"list_tools: {e}"
         return response_str
+
 
 @mcp.tool()
 async def get_variant_details(variant_id: str) -> str:
@@ -76,12 +78,11 @@ async def get_variant_details(variant_id: str) -> str:
     logger.info(f"Getting details of variant with ID: {variant_id}")
 
     server_params = StdioServerParameters(
-        command="uv",
-        args=["run", "--with", "biomcp-python", "biomcp", "run"]
+        command="uv", args=["run", "--with", "biomcp-python", "biomcp", "run"]
     )
     async with (
         stdio_client(server_params) as (read, write),
-        ClientSession(read, write) as session
+        ClientSession(read, write) as session,
     ):
         # Initialize the session
         await session.initialize()
@@ -92,8 +93,8 @@ async def get_variant_details(variant_id: str) -> str:
                 "variant_details",
                 {
                     "call_benefit": "Understand the variant details",
-                    "variant_id": variant_id
-                }
+                    "variant_id": variant_id,
+                },
             )
             if not result.isError and result.content:
                 # Access the text content from the first content block
@@ -102,6 +103,7 @@ async def get_variant_details(variant_id: str) -> str:
             logger.error(f"Error: {e}")
             response_str = f"get_variant_details: {e}"
         return response_str
+
 
 @mcp.tool()
 async def get_article_details(pmid: str) -> str:
@@ -115,22 +117,18 @@ async def get_article_details(pmid: str) -> str:
     logger.info(f"Getting details of article with PMID: {pmid}")
 
     server_params = StdioServerParameters(
-        command="uv",
-        args=["run", "--with", "biomcp-python", "biomcp", "run"]
+        command="uv", args=["run", "--with", "biomcp-python", "biomcp", "run"]
     )
     async with (
         stdio_client(server_params) as (read, write),
-        ClientSession(read, write) as session
+        ClientSession(read, write) as session,
     ):
         await session.initialize()
         response_str = ""
         try:
             result = await session.call_tool(
                 "article_details",
-                {
-                    "call_benefit": "SGet details of a PubMed article",
-                    "pmid": pmid
-                }
+                {"call_benefit": "SGet details of a PubMed article", "pmid": pmid},
             )
             if not result.isError and result.content:
                 response_str = result.content[0].text
@@ -139,8 +137,11 @@ async def get_article_details(pmid: str) -> str:
             response_str = f"get_article_details: {e}"
         return response_str
 
+
 @mcp.tool()
-async def article_searcher(diseases:List[str] = [], keywords:List[str] = [], genes:List[str] = []) -> str:
+async def article_searcher(
+    diseases: List[str] = [], keywords: List[str] = [], genes: List[str] = []
+) -> str:
     """
     Search PubMed articles using structured criteria.
 
@@ -151,14 +152,15 @@ async def article_searcher(diseases:List[str] = [], keywords:List[str] = [], gen
 
     """
     server_params = StdioServerParameters(
-        command="uv",
-        args=["run", "--with", "biomcp-python", "biomcp", "run"]
+        command="uv", args=["run", "--with", "biomcp-python", "biomcp", "run"]
     )
     async with (
         stdio_client(server_params) as (read, write),
-        ClientSession(read, write) as session
+        ClientSession(read, write) as session,
     ):
-        logger.info(f"Searching for articles with diseases: {diseases}, keywords: {keywords}, genes: {genes}")
+        logger.info(
+            f"Searching for articles with diseases: {diseases}, keywords: {keywords}, genes: {genes}"
+        )
 
         await session.initialize()
         response_str = ""
@@ -170,7 +172,7 @@ async def article_searcher(diseases:List[str] = [], keywords:List[str] = [], gen
                     "diseases": diseases,
                     "keywords": keywords,
                     "genes": genes,
-                }
+                },
             )
             if not result.isError and result.content:
                 response_str = result.content[0].text
@@ -182,23 +184,23 @@ async def article_searcher(diseases:List[str] = [], keywords:List[str] = [], gen
 
 @mcp.tool()
 async def trial_searcher(
-    conditions:List[str] = [],
-    terms:List[str] = [],
-    interventions:List[str] = [],
-    recruitment_status:str = "",
-    study_type:str = "",
-    nct_ids:List[str] = [],
-    lat:float = 0.0,
-    long:float = 0.0,
-    distance:float = 0.0,
-    min_date:str = "",
-    max_date:str = "",
-    date_field:str = "",
-    phase:str = "",
-    age_group:str = "",
-    primary_purpose:str = "",
-    intervention_type:str = "",
-    study_design:str = "",
+    conditions: List[str] = [],
+    terms: List[str] = [],
+    interventions: List[str] = [],
+    recruitment_status: str = "",
+    study_type: str = "",
+    nct_ids: List[str] = [],
+    lat: float = 0.0,
+    long: float = 0.0,
+    distance: float = 0.0,
+    min_date: str = "",
+    max_date: str = "",
+    date_field: str = "",
+    phase: str = "",
+    age_group: str = "",
+    primary_purpose: str = "",
+    intervention_type: str = "",
+    study_design: str = "",
 ) -> str:
     """
     Search clinical trials using structured criteria.
@@ -224,14 +226,15 @@ async def trial_searcher(
     """
 
     server_params = StdioServerParameters(
-        command="uv",
-        args=["run", "--with", "biomcp-python", "biomcp", "run"]
+        command="uv", args=["run", "--with", "biomcp-python", "biomcp", "run"]
     )
     async with (
         stdio_client(server_params) as (read, write),
-        ClientSession(read, write) as session
+        ClientSession(read, write) as session,
     ):
-        logger.info(f"Searching for clinical trials with conditions: {conditions}, terms: {terms}, phase: {phase}, age_group: {age_group}")
+        logger.info(
+            f"Searching for clinical trials with conditions: {conditions}, terms: {terms}, phase: {phase}, age_group: {age_group}"
+        )
 
         await session.initialize()
         response_str = ""
@@ -260,7 +263,7 @@ async def trial_searcher(
                     "primary_purpose": primary_purpose,
                     "intervention_type": intervention_type,
                     "study_design": study_design,
-                }
+                },
             )
             if not result.isError and result.content:
                 response_str = result.content[0].text
@@ -271,9 +274,9 @@ async def trial_searcher(
 
 
 ## PubMed models and parsing utilities are imported from bioagents.models.pubmed
-#--------------------------------
+# --------------------------------
 # Streamable HTTPMCP Server
-#--------------------------------
+# --------------------------------
 
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")

@@ -85,13 +85,15 @@ async def get_mind_map(summary: str, highlights: List[str]) -> Union[str, None]:
         response = await LLM_STRUCT.achat(messages=messages)
         response_json = json.loads(response.message.content)
         net = Network(directed=True, height="750px", width="100%")
-        net.set_options("""
+        net.set_options(
+            """
             var options = {
             "physics": {
                 "enabled": false
             }
             }
-            """)
+            """
+        )
         nodes = response_json["nodes"]
         edges = response_json["edges"]
         for node in nodes:

@@ -37,4 +37,6 @@ def test_get_collections_non_empty(qdrant_client: QdrantClient) -> None:
     collections = resp.collections if hasattr(resp, "collections") else resp
 
     assert isinstance(collections, list), "Expected a list of collections"
-    assert len(collections) > 0, "Qdrant has no collections; create one before running this test"
+    assert (
+        len(collections) > 0
+    ), "Qdrant has no collections; create one before running this test"

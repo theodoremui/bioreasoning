@@ -43,12 +43,7 @@ def test_parse_articles_basic_record():
 
 @pytest.mark.asyncio
 async def test_parse_articles_async_wrapper():
-    text = (
-        "# Record 1\n"
-        "Pmid: 1\n"
-        "Title: T\n"
-        "Journal: J\n"
-    )
+    text = "# Record 1\n" "Pmid: 1\n" "Title: T\n" "Journal: J\n"
     articles = await parse_articles(text)
     assert len(articles) == 1
     assert isinstance(articles[0], PubMedArticle)
@@ -81,13 +76,7 @@ def test_parse_article_details_basic():
 
 @pytest.mark.asyncio
 async def test_parse_article_details_async_wrapper():
-    text = (
-        "Pmid: 42\n"
-        "Title: T\n"
-        "Journal: J\n"
-        "Date: 2023\n"
-    )
+    text = "Pmid: 42\n" "Title: T\n" "Journal: J\n" "Date: 2023\n"
     details = await parse_article_details(text)
     assert isinstance(details, PubMedArticleDetails)
     assert details.pmid == "42"
-

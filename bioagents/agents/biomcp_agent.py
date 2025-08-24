@@ -1,6 +1,6 @@
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # biomcp_agent.py
-# 
+#
 # A high-level interface for interacting with biomedical research tools via the MCP protocol.
 # Provides a simple async chat interface while handling all the complexity of server management,
 # connection handling, and resource cleanup.
@@ -24,10 +24,10 @@
 #     async with BioMCPAgent() as agent:
 #         result = await agent.achat("Get details for variant rs113488022")
 #         print(result)
-# 
+#
 # Author: Theodore Mui
 # Date: 2025-08-16
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 from agents import Agent
 import asyncio
@@ -65,9 +65,11 @@ class BioMCPAgent(BaseAgent):
     This is an expert agent that can answer biomedical, genetic, pubmed, and general medical questions
     using BioMCP research tools via the MCP protocol.
     """
+
     def __init__(
-        self, name: str, 
-        model_name: str=LLM.GPT_4_1_NANO, 
+        self,
+        name: str,
+        model_name: str = LLM.GPT_4_1_NANO,
     ):
         self.instructions = INSTRUCTIONS
         self.handoff_description = (
@@ -91,7 +93,7 @@ class BioMCPAgent(BaseAgent):
                 tool_choice="required",
                 temperature=0.01,
                 top_p=1.0,
-            ),      
+            ),
             output_type=AgentResponse,
         )
 
@@ -119,7 +121,6 @@ class BioMCPAgent(BaseAgent):
     async def __aexit__(self, exc_type, exc, tb):
         await self.stop()
 
-    
     @override
     async def achat(self, query_str: str) -> AgentResponse:
         logger.info(f"=> biomcp: {self.name}: {query_str}")
@@ -143,7 +144,9 @@ class BioMCPAgent(BaseAgent):
             try:
                 try:
                     tool_list = await server.list_tools()
-                    print(f"\t# BioMCPAgent tools: {len(tool_list)}: {[tool.name for tool in tool_list]}")
+                    print(
+                        f"\t# BioMCPAgent tools: {len(tool_list)}: {[tool.name for tool in tool_list]}"
+                    )
                 except Exception:
                     pass
 
@@ -167,14 +170,14 @@ class BioMCPAgent(BaseAgent):
                 route=AgentRouteType.BIOMCP,
             )
 
-
         response = await super().achat(query_str)
         response.route = AgentRouteType.LLAMARAG
         return response
-    
-#------------------------------------------------
+
+
+# ------------------------------------------------
 # Example usage
-#------------------------------------------------
+# ------------------------------------------------
 async def smoke_tests() -> None:
     try:
         print("==> 1")
@@ -184,11 +187,18 @@ async def smoke_tests() -> None:
         print("==> 3")
         print(str(await agent.achat("What is ICD-10?")))
         print("==> 4")
-        print(str(await agent.achat("Give us a few pubmed articles about the spread of COVID in 2025.")))
+        print(
+            str(
+                await agent.achat(
+                    "Give us a few pubmed articles about the spread of COVID in 2025."
+                )
+            )
+        )
         print("==> 5")
     finally:
         print("==> 6")
         await agent.stop()
+
 
 if __name__ == "__main__":
     asyncio.run(smoke_tests())

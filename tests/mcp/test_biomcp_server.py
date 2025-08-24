@@ -7,8 +7,10 @@ from bioagents.mcp import biomcp_server as srv
 
 @pytest.mark.asyncio
 async def test_list_tools_happy_path():
-    with patch("bioagents.mcp.biomcp_server.stdio_client") as mock_stdio, \
-         patch("bioagents.mcp.biomcp_server.ClientSession") as MockSession:
+    with (
+        patch("bioagents.mcp.biomcp_server.stdio_client") as mock_stdio,
+        patch("bioagents.mcp.biomcp_server.ClientSession") as MockSession,
+    ):
         # Mock stdio_client context
         mock_read, mock_write = object(), object()
         mock_stdio.return_value.__aenter__.return_value = (mock_read, mock_write)
@@ -17,7 +19,8 @@ async def test_list_tools_happy_path():
         # Mock session
         session = AsyncMock()
         session.initialize = AsyncMock()
-        tool = MagicMock(); tool.name = "tool_a"
+        tool = MagicMock()
+        tool.name = "tool_a"
         session.list_tools = AsyncMock(return_value=MagicMock(tools=[tool]))
         MockSession.return_value.__aenter__.return_value = session
         MockSession.return_value.__aexit__.return_value = None
@@ -28,14 +31,17 @@ async def test_list_tools_happy_path():
 
 @pytest.mark.asyncio
 async def test_get_variant_details_success():
-    with patch("bioagents.mcp.biomcp_server.stdio_client") as mock_stdio, \
-         patch("bioagents.mcp.biomcp_server.ClientSession") as MockSession:
+    with (
+        patch("bioagents.mcp.biomcp_server.stdio_client") as mock_stdio,
+        patch("bioagents.mcp.biomcp_server.ClientSession") as MockSession,
+    ):
         mock_stdio.return_value.__aenter__.return_value = (object(), object())
         mock_stdio.return_value.__aexit__.return_value = None
 
         session = AsyncMock()
         session.initialize = AsyncMock()
-        content_block = MagicMock(); content_block.text = "Variant details..."
+        content_block = MagicMock()
+        content_block.text = "Variant details..."
         call_result = MagicMock(isError=False, content=[content_block])
         session.call_tool = AsyncMock(return_value=call_result)
         MockSession.return_value.__aenter__.return_value = session
@@ -47,8 +53,10 @@ async def test_get_variant_details_success():
 
 @pytest.mark.asyncio
 async def test_article_searcher_and_parse_articles():
-    with patch("bioagents.mcp.biomcp_server.stdio_client") as mock_stdio, \
-         patch("bioagents.mcp.biomcp_server.ClientSession") as MockSession:
+    with (
+        patch("bioagents.mcp.biomcp_server.stdio_client") as mock_stdio,
+        patch("bioagents.mcp.biomcp_server.ClientSession") as MockSession,
+    ):
         mock_stdio.return_value.__aenter__.return_value = (object(), object())
         mock_stdio.return_value.__aexit__.return_value = None
 
@@ -59,22 +67,25 @@ async def test_article_searcher_and_parse_articles():
             "# Record 1\n"
             "Pmid: 123\nTitle: T\nJournal: J\nDate: 2024\nDoi: d\nPubmed Url: u\nAuthors: A, B\n"
         )
-        content_block = MagicMock(); content_block.text = mcp_text
+        content_block = MagicMock()
+        content_block.text = mcp_text
         call_result = MagicMock(isError=False, content=[content_block])
         session.call_tool = AsyncMock(return_value=call_result)
         MockSession.return_value.__aenter__.return_value = session
         MockSession.return_value.__aexit__.return_value = None
 
         text = await srv.article_searcher(diseases=["x"])  # returns raw text
-        articles = await srv.parse_articles(text)            # use exported async parser
+        articles = await srv.parse_articles(text)  # use exported async parser
         assert len(articles) == 1
         assert articles[0].pmid == "123"
 
 
 @pytest.mark.asyncio
 async def test_get_article_details_and_parse():
-    with patch("bioagents.mcp.biomcp_server.stdio_client") as mock_stdio, \
-         patch("bioagents.mcp.biomcp_server.ClientSession") as MockSession:
+    with (
+        patch("bioagents.mcp.biomcp_server.stdio_client") as mock_stdio,
+        patch("bioagents.mcp.biomcp_server.ClientSession") as MockSession,
+    ):
         mock_stdio.return_value.__aenter__.return_value = (object(), object())
         mock_stdio.return_value.__aexit__.return_value = None
 
@@ -90,7 +101,8 @@ async def test_get_article_details_and_parse():
             "Authors: X, Y\n"
             "Date: 2020 Jan\n"
         )
-        content_block = MagicMock(); content_block.text = mcp_text
+        content_block = MagicMock()
+        content_block.text = mcp_text
         call_result = MagicMock(isError=False, content=[content_block])
         session.call_tool = AsyncMock(return_value=call_result)
         MockSession.return_value.__aenter__.return_value = session
@@ -100,4 +112,3 @@ async def test_get_article_details_and_parse():
         details = await srv.parse_article_details(raw)
         assert details.pmid == "999"
         assert details.year == 2020
-

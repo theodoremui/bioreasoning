@@ -9,6 +9,7 @@ Date: 2025-04-26
 """
 
 from dotenv import load_dotenv, find_dotenv
+
 load_dotenv(find_dotenv())
 
 import streamlit as st
@@ -30,7 +31,7 @@ st.set_page_config(
     page_title="BioReasoning Agent",
     page_icon="🧬",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # Add common sidebar content
@@ -41,18 +42,9 @@ with st.sidebar:
     )
 
 # Define pages using st.Page
-chat_page = st.Page(
-    "pages/1_Chat.py", 
-    title="Chat", 
-    icon="💬",
-    default=True
-)
+chat_page = st.Page("pages/1_Chat.py", title="Chat", icon="💬", default=True)
 
-documents_page = st.Page(
-    "pages/2_Documents.py", 
-    title="Documents", 
-    icon="📁"
-)
+documents_page = st.Page("pages/2_Documents.py", title="Documents", icon="📁")
 
 # Create navigation
 pg = st.navigation([chat_page, documents_page])

@@ -14,7 +14,9 @@ from typing import Any, Callable, Generic, Optional, Type, TypeVar
 _T = TypeVar("_T")
 
 
-class classproperty(Generic[_T]):  # noqa: N801 - intentionally camelCase for parity with @property
+class classproperty(
+    Generic[_T]
+):  # noqa: N801 - intentionally camelCase for parity with @property
     """A class-level property descriptor.
 
     This behaves like ``@property`` but for classes instead of instances. It is
@@ -52,5 +54,3 @@ class classproperty(Generic[_T]):  # noqa: N801 - intentionally camelCase for pa
 
 
 __all__ = ["classproperty"]
-
-

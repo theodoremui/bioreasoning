@@ -1,11 +1,11 @@
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # llamamcp_agent.py
-# 
+#
 # This agent is an LlamaCloud MCP agent that can query the LlamaCloud index.
-# 
+#
 # Author: Theodore Mui
 # Date: 2025-08-16
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 from agents import Agent
 import asyncio
@@ -41,14 +41,14 @@ class LlamaMCPAgent(BaseAgent):
     """
     This agent is an LlamaCloud MCP agent that can query the LlamaCloud index.
     """
+
     def __init__(
-        self, name: str, 
-        model_name: str=LLM.GPT_4_1_NANO, 
+        self,
+        name: str,
+        model_name: str = LLM.GPT_4_1_NANO,
     ):
         self.instructions = INSTRUCTIONS
-        self.handoff_description = (
-            "You are an LlamaCloud MCP agent that can query documents and knowledge about ICD-10 and medical codes."
-        )
+        self.handoff_description = "You are an LlamaCloud MCP agent that can query documents and knowledge about ICD-10 and medical codes."
 
         super().__init__(name, model_name, self.instructions)
         self._mcp_server: Optional[MCPServerStreamableHttp] = None
@@ -87,7 +87,9 @@ class LlamaMCPAgent(BaseAgent):
             await self._mcp_server.__aenter__()  # type: ignore[arg-type]
             try:
                 tool_list = await self._mcp_server.list_tools()  # type: ignore[union-attr]
-                print(f"\t# LlamaMCPAgent tools: {len(tool_list)}: {[tool.name for tool in tool_list]}")
+                print(
+                    f"\t# LlamaMCPAgent tools: {len(tool_list)}: {[tool.name for tool in tool_list]}"
+                )
             except Exception:
                 pass
             if self._agent is not None:
@@ -131,7 +133,6 @@ class LlamaMCPAgent(BaseAgent):
     async def __aexit__(self, exc_type, exc, tb):
         await self.stop()
 
-    
     @override
     async def achat(self, query_str: str) -> AgentResponse:
         logger.info(f"=> llamamcp: {self.name}: {query_str}")
@@ -148,10 +149,10 @@ class LlamaMCPAgent(BaseAgent):
                 route=AgentRouteType.LLAMAMCP,
             )
 
-    
-#------------------------------------------------
+
+# ------------------------------------------------
 # Example usage
-#------------------------------------------------
+# ------------------------------------------------
 async def smoke_tests() -> None:
     try:
         print("==> 1")
@@ -161,11 +162,18 @@ async def smoke_tests() -> None:
         print("==> 3")
         print(str(await agent.achat("What is ICD-10?")))
         print("==> 4")
-        print(str(await agent.achat("What are the top 10 United Nations climate mandates?")))
+        print(
+            str(
+                await agent.achat(
+                    "What are the top 10 United Nations climate mandates?"
+                )
+            )
+        )
         print("==> 5")
     finally:
         print("==> 6")
         await agent.stop()
+
 
 if __name__ == "__main__":
     asyncio.run(smoke_tests())

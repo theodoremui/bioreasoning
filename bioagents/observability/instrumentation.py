@@ -49,7 +49,7 @@ class OtelTracesSqlEngine:
             "end": end_time or int(time.time() * 1000000),
             "limit": limit or 1000,
         }
-        
+
         try:
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
