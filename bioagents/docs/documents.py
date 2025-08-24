@@ -1,17 +1,18 @@
 from dataclasses import dataclass
+from typing import List, Optional, Union, cast
+
 from sqlalchemy import (
-    Table,
-    MetaData,
     Column,
-    Text,
-    Integer,
-    create_engine,
-    Engine,
     Connection,
+    Engine,
+    Integer,
+    MetaData,
+    Table,
+    Text,
+    create_engine,
     insert,
     select,
 )
-from typing import Optional, List, cast, Union
 
 
 def apply_string_correction(string: str) -> str:

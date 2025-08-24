@@ -7,13 +7,14 @@
 # Date: 2025-04-26
 # ------------------------------------------------------------------------------
 
-from agents import Agent
 from typing import override
+
+from agents import Agent
 from loguru import logger
 
+from bioagents.agents.base_agent import BaseAgent
 from bioagents.agents.common import AgentResponse, AgentRouteType
 from bioagents.models.llms import LLM
-from bioagents.agents.base_agent import BaseAgent
 
 
 class ChitChatAgent(BaseAgent):

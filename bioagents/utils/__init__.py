@@ -14,40 +14,39 @@ This package contains utility modules for the BioAgents system, including
 retry logic, error handling, and other common utilities.
 """
 
-from .async_utils import run_async, create_async_wrapper
-
+from .async_utils import create_async_wrapper, run_async
 
 # Always import retry utilities (core functionality)
 from .retry import (
-    RetryConfig,
-    RetryStrategy,
     ExponentialBackoffStrategy,
     RateLimitAwareStrategy,
+    RetryConfig,
     RetryContext,
+    RetryStrategies,
+    RetryStrategy,
+    is_rate_limit_error,
+    is_retryable_error,
+    retry_api_call,
     retry_with_backoff,
     retry_with_rate_limit_awareness,
-    RetryStrategies,
-    retry_api_call,
-    is_retryable_error,
-    is_rate_limit_error,
 )
 
 # Try to import API clients (may fail if dependencies not installed)
 try:
     from .api_clients import (
-        BaseAPIClient,
-        RobustOpenAIClient,
-        RobustElevenLabsClient,
         APICallResult,
-        OpenAIAPIError,
-        ElevenLabsAPIError,
-        RateLimitError,
         AuthenticationError,
-        ValidationError,
+        BaseAPIClient,
+        ElevenLabsAPIError,
+        OpenAIAPIError,
         QuotaExceededError,
-        create_openai_client,
-        create_elevenlabs_client,
+        RateLimitError,
+        RobustElevenLabsClient,
+        RobustOpenAIClient,
+        ValidationError,
         check_api_connection,
+        create_elevenlabs_client,
+        create_openai_client,
         get_client_status,
         get_elevenlabs_credit_info,
     )
@@ -112,16 +111,16 @@ if API_CLIENTS_AVAILABLE:
 
 
 # Add audio management utilities
-from .audio_manager import AudioFileManager, AudioFileProcessor, AudioFileError
+from .audio_manager import AudioFileError, AudioFileManager, AudioFileProcessor
 
 # Add spinner utilities
+from .spinner import Spinner  # Alias for backward compatibility
 from .spinner import (
-    ProgressSpinner,
-    Spinner,  # Alias for backward compatibility
-    OutputWriter,
     ConsoleOutputWriter,
-    Timer,
+    OutputWriter,
+    ProgressSpinner,
     SpinnerAnimation,
+    Timer,
     spinner_context,
 )
 

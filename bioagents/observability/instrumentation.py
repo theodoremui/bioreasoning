@@ -1,10 +1,10 @@
-import requests
-import time
-import pandas as pd
 import logging
+import time
+from typing import Any, Dict, List, Literal, Optional, Union, cast
 
-from sqlalchemy import Engine, create_engine, Connection, Result
-from typing import Optional, Dict, Any, List, Literal, Union, cast
+import pandas as pd
+import requests
+from sqlalchemy import Connection, Engine, Result, create_engine
 
 # Set up logging
 logger = logging.getLogger(__name__)

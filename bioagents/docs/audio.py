@@ -1,9 +1,10 @@
-import tempfile as temp
-import os
-import uuid
-from dotenv import load_dotenv
 import logging
+import os
+import tempfile as temp
+import uuid
 from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
 
 try:
     from pydub import AudioSegment
@@ -11,11 +12,12 @@ except (
     Exception
 ):  # pragma: no cover - optional dependency for tests without audio toolchain
     AudioSegment = None  # type: ignore[assignment]
-from llama_index.core.llms.structured_llm import StructuredLLM
-from typing_extensions import Self
-from typing import Union, Optional, List, AsyncIterator, Literal
-from pydantic import BaseModel, ConfigDict, model_validator, Field
+from typing import AsyncIterator, List, Literal, Optional, Union
+
 from llama_index.core.llms import ChatMessage
+from llama_index.core.llms.structured_llm import StructuredLLM
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing_extensions import Self
 
 try:
     from llama_index.llms.openai import OpenAIResponses
@@ -23,14 +25,14 @@ except Exception:  # pragma: no cover - optional dependency in some environments
     OpenAIResponses = None  # type: ignore[assignment]
 
 from bioagents.utils import (
-    RobustElevenLabsClient,
-    RobustOpenAIClient,
     ElevenLabsAPIError,
     OpenAIAPIError,
+    QuotaExceededError,
     RetryStrategies,
+    RobustElevenLabsClient,
+    RobustOpenAIClient,
     create_elevenlabs_client,
     create_openai_client,
-    QuotaExceededError,
 )
 
 logger = logging.getLogger(__name__)
@@ -204,6 +206,7 @@ class PodcastGenerator(BaseModel):
             # Try to create a default OpenAI client
             try:
                 import os
+
                 from bioagents.utils import create_openai_client
 
                 api_key = os.getenv("OPENAI_API_KEY")

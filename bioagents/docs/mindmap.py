@@ -1,14 +1,14 @@
-import uuid
-import os
-import warnings
 import json
-from pydantic import BaseModel, Field, model_validator
-from typing_extensions import Self
+import os
+import uuid
+import warnings
 from typing import List, Union
 
-from pyvis.network import Network
 from llama_index.core.llms import ChatMessage
 from llama_index.llms.openai import OpenAIResponses
+from pydantic import BaseModel, Field, model_validator
+from pyvis.network import Network
+from typing_extensions import Self
 
 
 class Node(BaseModel):

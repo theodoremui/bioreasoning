@@ -13,23 +13,24 @@
 # ------------------------------------------------------------------------------
 
 import asyncio
+from typing import override
+
 from agents import (
     Agent,
+    ModelSettings,
     Runner,
     function_tool,
-    ModelSettings,
 )
 from loguru import logger
-from typing import override
 
 from bioagents.agents.base_agent import BaseAgent
 from bioagents.agents.biomcp_agent import BioMCPAgent
 from bioagents.agents.chitchat_agent import ChitChatAgent
+from bioagents.agents.common import AgentResponse, AgentRouteType
 from bioagents.agents.llamamcp_agent import LlamaMCPAgent
 from bioagents.agents.llamarag_agent import LlamaRAGAgent
-from bioagents.agents.common import AgentResponse, AgentRouteType
-from bioagents.models.llms import LLM
 from bioagents.agents.web_agent import WebReasoningAgent
+from bioagents.models.llms import LLM
 
 
 class BioConciergeAgent(BaseAgent):

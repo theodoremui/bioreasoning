@@ -9,14 +9,15 @@
 # ------------------------------------------------------------------------------
 
 
-from dotenv import load_dotenv, find_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 load_dotenv(find_dotenv())
 
 import os
-from openai import AsyncOpenAI, OpenAI
 from dataclasses import dataclass
 from typing import List
+
+from openai import AsyncOpenAI, OpenAI
 
 from bioagents.commons import classproperty
 
