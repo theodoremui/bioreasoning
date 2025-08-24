@@ -3,16 +3,93 @@ from dotenv import find_dotenv, load_dotenv
 load_dotenv(find_dotenv())
 
 import asyncio
-import json
-import re
 import hashlib
-import warnings
-import os
-
+import json
 import networkx as nx
+import os
+import re
+import sys
+import time
+import threading
+import warnings
 
 # Global constants
 NCCN_COMMUNITIES_CACHE_FILE = "data/nccn_communities.json"
+
+class Spinner:
+    """Simple text-based animated spinner for showing progress with timer"""
+    
+    def __init__(self, message="Processing", spinner_chars="|/-\\"):
+        self.message = message
+        self.spinner_chars = spinner_chars
+        self.running = False
+        self.thread = None
+        self.start_time = None
+        
+    def _format_elapsed_time(self, elapsed_seconds):
+        """Format elapsed time as MM:SS"""
+        minutes = int(elapsed_seconds // 60)
+        seconds = int(elapsed_seconds % 60)
+        return f"{minutes:02d}:{seconds:02d}"
+        
+    def _spin(self):
+        """Internal method to animate the spinner with timer"""
+        i = 0
+        while self.running:
+            char = self.spinner_chars[i % len(self.spinner_chars)]
+            elapsed = time.time() - self.start_time
+            elapsed_str = self._format_elapsed_time(elapsed)
+            
+            # Create the spinner line with timer
+            spinner_line = f"\r{self.message} {char} [{elapsed_str}]"
+            sys.stdout.write(spinner_line)
+            sys.stdout.flush()
+            time.sleep(0.1)
+            i += 1
+            
+    def start(self):
+        """Start the spinner animation"""
+        if not self.running:
+            self.running = True
+            self.start_time = time.time()
+            self.thread = threading.Thread(target=self._spin)
+            self.thread.daemon = True
+            self.thread.start()
+            
+    def stop(self, final_message=None):
+        """Stop the spinner and optionally show a final message"""
+        if self.running:
+            self.running = False
+            if self.thread:
+                self.thread.join()
+            
+            # Calculate final elapsed time
+            if self.start_time:
+                elapsed = time.time() - self.start_time
+                elapsed_str = self._format_elapsed_time(elapsed)
+            else:
+                elapsed_str = "00:00"
+            
+            # Clear the spinner line (make it long enough to clear timer too)
+            clear_length = len(self.message) + 20  # Extra space for timer and spinner
+            sys.stdout.write("\r" + " " * clear_length + "\r")
+            
+            if final_message:
+                print(f"{final_message} [{elapsed_str}]")
+            sys.stdout.flush()
+            
+    def __enter__(self):
+        """Context manager entry"""
+        self.start()
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit"""
+        if exc_type is None:
+            self.stop(f"✓ {self.message}: done!")
+        else:
+            self.stop(f"✗ {self.message}: failed!")
+        return False
 
 # Suppress deprecation warning from Setuptools about pkg_resources used in graspologic
 warnings.filterwarnings(
@@ -61,6 +138,20 @@ except Exception:
 
 
 llm = OpenAI(model="gpt-4.1-mini")
+
+# Environment variables
+LLAMACLOUD_API_KEY=os.getenv("LLAMACLOUD_API_KEY")
+NEO4J_USERNAME=os.getenv("NEO4J_USERNAME", "neo4j")
+NEO4J_PASSWORD=os.getenv("NEO4J_PASSWORD", "Salesforce1")
+NEO4J_URL=os.getenv("NEO4J_URL", "bolt://localhost:7687")
+
+# Performance configuration
+PERFORMANCE_CONFIG = {
+    "kg_extraction_workers": int(os.getenv("KG_EXTRACTION_WORKERS", "8")),  # GraphRAG extraction workers
+    "pdf_parse_workers": int(os.getenv("PDF_PARSE_WORKERS", "8")),          # LlamaParse workers  
+    "max_paths_per_chunk": int(os.getenv("MAX_PATHS_PER_CHUNK", "2")),      # Triplets per text chunk
+    "max_cluster_size": int(os.getenv("MAX_CLUSTER_SIZE", "5")),            # Community detection cluster size
+}
 
 KG_TRIPLET_EXTRACT_TMPL = """
 -Goal-
@@ -139,7 +230,7 @@ class GraphRAGStore(Neo4jPropertyGraphStore):
 
     community_summary = {}
     entity_info = None
-    max_cluster_size = 5
+    max_cluster_size = PERFORMANCE_CONFIG["max_cluster_size"]
     # Added fields to capture full, reproducible graph community state
     cluster_assignments: Dict[str, int] | None = None  # node -> cluster id
     community_info: Dict[int, List[str]] | None = (
@@ -633,6 +724,9 @@ class GraphRAGExtractor(TransformComponent):
         except Exception:
             full_text = ""
         snippet = make_contextual_snippet(full_text, "", max_length=500)
+        # If snippet is empty, try to use the first part of the full text
+        if not snippet and full_text:
+            snippet = full_text[:500]
         # if isinstance(base_prov.get("char_start"), int) and isinstance(
         #     base_prov.get("char_end"), int
         # ):
@@ -730,13 +824,6 @@ def parse_fn(response_str: str) -> Any:
         return entities, relationships
 
 
-kg_extractor = GraphRAGExtractor(
-    llm=llm,
-    extract_prompt=KG_TRIPLET_EXTRACT_TMPL,
-    max_paths_per_chunk=2,
-    parse_fn=parse_fn,
-)
-
 
 class GraphRAGQueryEngine(CustomQueryEngine):
     """Query engine over community summaries and provenance-bearing triplets.
@@ -772,9 +859,22 @@ class GraphRAGQueryEngine(CustomQueryEngine):
             # If we have any communities, consider all of them
             community_ids = list(community_summaries.keys())
 
-        # Ensure community_ids are integers to match the keys in community_summaries
-        # After the load_communities fix, all keys are integers
-        community_ids = [int(cid) if isinstance(cid, str) and cid.isdigit() else cid for cid in community_ids]
+        # Fix: Ensure consistent key types - normalize all to the same type as community_summaries keys
+        if community_summaries:
+            sample_key = next(iter(community_summaries.keys()))
+            target_type = type(sample_key)
+            
+            normalized_community_ids = []
+            for cid in community_ids:
+                try:
+                    if target_type == int:
+                        normalized_cid = int(cid) if isinstance(cid, str) and cid.isdigit() else int(cid)
+                    else:
+                        normalized_cid = str(cid)
+                    normalized_community_ids.append(normalized_cid)
+                except (ValueError, TypeError):
+                    continue
+            community_ids = normalized_community_ids
 
         # Rank summaries by simple keyword overlap with the query and select top-k
         ranked = self._rank_communities_by_query_overlap(
@@ -848,6 +948,26 @@ class GraphRAGQueryEngine(CustomQueryEngine):
                 para = c.get("paragraph")
                 # Clean any existing uncleaned snippets from cached data
                 raw_snippet = c.get("snippet") or ""
+                
+                # If no snippet available, try multiple fallback strategies
+                if not raw_snippet:
+                    # Try to get the detail from the triplet for this citation
+                    triplet_key = c.get("triplet_key")
+                    if triplet_key and hasattr(self.graph_store, "triplet_provenance"):
+                        prov_list = self.graph_store.triplet_provenance.get(triplet_key, [])
+                        if prov_list:
+                            raw_snippet = prov_list[0].get("source_snippet", "")
+                    
+                    # If still no snippet, try to find the triplet detail from community info
+                    if not raw_snippet and triplet_key:
+                        for cid, items in (self.graph_store.community_info or {}).items():
+                            for item in items:
+                                if isinstance(item, dict) and item.get("triplet_key") == triplet_key:
+                                    raw_snippet = item.get("detail", "")
+                                    break
+                            if raw_snippet:
+                                break
+                
                 snippet = make_contextual_snippet(raw_snippet, "", max_length=500) if raw_snippet else ""
                 loc = []
                 if page is not None:
@@ -867,7 +987,10 @@ class GraphRAGQueryEngine(CustomQueryEngine):
         Strategy:
         1) Try retriever-based extraction from indexed path triples.
         2) If nothing found, fallback to vocabulary scanning over graph entities.
+        3) Enhanced fallback with partial matching and common medical terms.
         """
+
+        
         try:
             nodes_retrieved = self.index.as_retriever(
                 similarity_top_k=similarity_top_k
@@ -890,7 +1013,7 @@ class GraphRAGQueryEngine(CustomQueryEngine):
         if entities:
             return list(entities)
 
-        # Fallback: scan graph vocabulary (entity names) and select those mentioned in query
+        # Enhanced fallback: scan graph vocabulary with better matching
         try:
             triplets = self.graph_store.get_triplets()
         except Exception:
@@ -907,8 +1030,38 @@ class GraphRAGQueryEngine(CustomQueryEngine):
             except Exception:
                 pass
 
+
+        
+        # Enhanced matching - exact match, partial match, and key medical terms
         q_lower = query_str.lower()
-        fallback_entities = [name for name in vocab if name.lower() in q_lower]
+        query_tokens = set(re.findall(r'\b\w+\b', q_lower))
+        
+        fallback_entities = []
+        
+        # Exact substring matching (original approach)
+        exact_matches = [name for name in vocab if name.lower() in q_lower]
+        fallback_entities.extend(exact_matches)
+        
+        # Token-based matching for better recall
+        for name in vocab:
+            name_tokens = set(re.findall(r'\b\w+\b', name.lower()))
+            if query_tokens & name_tokens:  # If any tokens overlap
+                if name not in fallback_entities:
+                    fallback_entities.append(name)
+        
+        # Special handling for medical abbreviations and terms
+        medical_mappings = {
+            'her2': ['HER2', 'HER-2', 'ERBB2'],
+            'breast cancer': ['Breast Cancer', 'breast cancer', 'Breast Neoplasms'],
+            'treatment': ['Treatment', 'Therapy', 'Therapeutic'],
+            'patient': ['Patient', 'Patients']
+        }
+        
+        for query_term, entity_variants in medical_mappings.items():
+            if query_term in q_lower:
+                for variant in entity_variants:
+                    if variant in vocab and variant not in fallback_entities:
+                        fallback_entities.append(variant)
 
         return fallback_entities
 
@@ -918,14 +1071,52 @@ class GraphRAGQueryEngine(CustomQueryEngine):
         query_str: str,
         candidate_ids: List[int],
     ) -> List[tuple[int, int]]:
-        """Rank community summaries by simple keyword overlap with the query."""
-        query_terms = {t.lower() for t in re.findall(r"[a-zA-Z0-9+-]{3,}", query_str)}
+        """Rank community summaries by enhanced keyword overlap with the query."""
+        # Enhanced query term extraction
+        query_terms = {t.lower() for t in re.findall(r"[a-zA-Z0-9+-]{2,}", query_str)}  # Reduced min length to 2
+        query_tokens = set(re.findall(r'\b\w+\b', query_str.lower()))
+        
+        # Add medical term mappings for better matching
+        medical_expansions = {
+            'her2': ['her2', 'her-2', 'erbb2', 'human epidermal growth factor receptor 2'],
+            'breast': ['breast', 'mammary', 'mammographic'],
+            'cancer': ['cancer', 'carcinoma', 'neoplasm', 'tumor', 'malignancy'],
+            'treatment': ['treatment', 'therapy', 'therapeutic', 'treat', 'intervention'],
+            'patient': ['patient', 'patients', 'individual', 'case']
+        }
+        
+        expanded_query_terms = set(query_terms)
+        for term in query_tokens:
+            if term in medical_expansions:
+                expanded_query_terms.update(medical_expansions[term])
+        
+
+        
         scored: List[tuple[int, int]] = []
         for cid in candidate_ids:
             summ = community_summaries.get(cid) or ""
-            text_terms = {t.lower() for t in re.findall(r"[a-zA-Z0-9+-]{3,}", summ)}
-            score = len(query_terms & text_terms)
-            scored.append((cid, score))
+            if not summ:
+                scored.append((cid, 0))
+                continue
+                
+            # Multiple scoring approaches
+            text_terms = {t.lower() for t in re.findall(r"[a-zA-Z0-9+-]{2,}", summ)}
+            text_tokens = set(re.findall(r'\b\w+\b', summ.lower()))
+            
+            # Basic term overlap
+            basic_score = len(query_terms & text_terms)
+            
+            # Token overlap (more flexible)
+            token_score = len(query_tokens & text_tokens)
+            
+            # Expanded term overlap (medical synonyms)
+            expanded_score = len(expanded_query_terms & text_terms)
+            
+            # Weighted final score
+            final_score = basic_score * 3 + token_score * 2 + expanded_score * 1
+            
+            scored.append((cid, final_score))
+            
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored
 
@@ -1051,33 +1242,200 @@ class GraphRAGQueryEngine(CustomQueryEngine):
         return cleaned_final_response
 
 
-if __name__ == "__main__":
-    graph_store = GraphRAGStore(
-        username="neo4j",
-        password="Salesforce1",
-        url="bolt://localhost:7687",  # database="nccn"
-    )
-    # Persist under project data/ directory using absolute path
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-    persist_path = os.path.join(project_root, NCCN_COMMUNITIES_CACHE_FILE)
-    print(f"loading graph store from {persist_path}", flush=True)
-    graph_store.ensure_communities(persist_path=persist_path)
+from llama_cloud_services.parse import LlamaParse
+from llama_cloud_services.parse.types import JobResult
+from pathlib import Path
+from llama_index.core.schema import TextNode, Document
 
-    index = PropertyGraphIndex(
-        nodes=[],
-        kg_extractors=[kg_extractor],
-        property_graph_store=graph_store,
-        show_progress=True,
-    )
-    query_engine = GraphRAGQueryEngine(
-        graph_store=index.property_graph_store,
-        llm=llm,
-        index=index,
-        similarity_top_k=20,
-    )
+zip_texts = [
+    "Printed by Stina Singel on 6/17/2025 3:05:05 AM. For personal use only. Not approved for distribution. Copyright © 2025 National Comprehensive Cancer Network, Inc., All Rights Reserved.\n\n"
+]
+
+async def clean_pages(results: JobResult):
+
+    print(f"Type of results.pages: {type(results.pages)}")
+    print(f"Number of pages: {len(results.pages)}")
+    if results.pages:
+        print(f"Type of first page: {type(results.pages[0])}")
+        print(f"Page attributes: {[attr for attr in dir(results.pages[0]) if not attr.startswith('_')]}")
+
+    for zip_text in zip_texts:
+        for page in results.pages:
+            if hasattr(page, 'text') and page.text:
+                page.text = page.text.replace(zip_text, "").strip()
+            if hasattr(page, 'md') and page.md:
+                page.md = page.md.replace(zip_text, "").strip()
+
+    print("✓ Successfully cleaned zip_text from all pages")
+    return results
+
+async def build_provenance(documents: List[Document], pdf_path: str):
+    """Build paragraph-level TextNodes with provenance metadata"""
+
+    doc_id = Path(pdf_path).stem
+    doc_title = doc_id  # optionally parse from documents[0].text
+    nodes = []
+
+    for page_idx, doc in enumerate(documents):  # documents from LlamaParse
+        page_text = doc.text or ""
+        # simple paragraph split; adjust to your needs
+        paragraphs = [p.strip() for p in page_text.split("\n\n") if p.strip()]
+        offset = 0
+        for para_idx, para in enumerate(paragraphs):
+            start = page_text.find(para, offset)
+            end = start + len(para) if start >= 0 else None
+            offset = (end or offset)
+            node = TextNode(
+                text=para,
+                metadata={
+                    "doc_id": doc_id,
+                    "doc_title": doc_title,
+                    "file_path": pdf_path,
+                    "page_number": page_idx + 1,
+                    "paragraph_index": para_idx,
+                    "char_start": start,
+                    "char_end": end,
+                },
+            )
+            nodes.append(node)
+    return nodes
+
+
+kg_extractor = GraphRAGExtractor(
+    llm=llm,
+    extract_prompt=KG_TRIPLET_EXTRACT_TMPL,
+    max_paths_per_chunk=PERFORMANCE_CONFIG["max_paths_per_chunk"],
+    parse_fn=parse_fn,
+    num_workers=PERFORMANCE_CONFIG["kg_extraction_workers"],
+)
+
+async def process_nccn_pdf(
+    pdf_path: str = "data/nccn_breast_cancer.pdf",
+    graph_store: GraphRAGStore = None
+) -> PropertyGraphIndex:
+    
+    with Spinner("Initializing PDF parser"):
+        # Initialize parser with specified mode
+        parser = LlamaParse(
+            api_key=LLAMACLOUD_API_KEY,
+            num_workers=PERFORMANCE_CONFIG["pdf_parse_workers"],
+            verbose=False,  # Disable verbose to avoid conflicts with spinner
+            language="en",
+        )
+    
+    with Spinner("Parsing PDF document"):
+        results = await parser.aparse(pdf_path)
+        
+    if results:
+        with Spinner("Cleaning document pages"):
+            results = await clean_pages(results)
+            documents = results.get_markdown_documents(split_by_page=True)
+            nodes = await build_provenance(documents, pdf_path)
+        
+        with Spinner("Building knowledge graph"):
+            index = PropertyGraphIndex(
+                nodes=nodes,
+                kg_extractors=[kg_extractor],
+                property_graph_store=graph_store,
+                show_progress=False,  # Disable built-in progress
+            )
+            
+        # Persist under project data/ directory using absolute path
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+        persist_path = os.path.join(project_root, NCCN_COMMUNITIES_CACHE_FILE)
+        
+        with Spinner("Building communities"):
+            graph_store.ensure_communities(persist_path=persist_path)
+    else:
+        print("✗ Failed to parse PDF")
+        return None
+    return index
+
+
+async def load_index(graph_store: GraphRAGStore):
+    """Load index from graph store
+    """
+    try:
+        with Spinner("Loading graph index"):
+            index = PropertyGraphIndex(
+                nodes=[],
+                kg_extractors=[],
+                property_graph_store=graph_store,
+                show_progress=False,  # Disable built-in progress to avoid conflicts
+            )
+            
+        # Persist under project data/ directory using absolute path
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+        persist_path = os.path.join(project_root, NCCN_COMMUNITIES_CACHE_FILE)
+        
+        with Spinner("Loading communities from cache"):
+            graph_store.ensure_communities(persist_path=persist_path)
+            
+    except Exception as e:
+        print(f"✗ Error loading index: {e}")
+        return None
+    return index
+
+async def main():
+    # Display performance configuration
+    print("🚀 Performance Configuration:")
+    print(f"   • KG Extraction Workers: {PERFORMANCE_CONFIG['kg_extraction_workers']}")
+    print(f"   • PDF Parse Workers: {PERFORMANCE_CONFIG['pdf_parse_workers']}")
+    print(f"   • Max Paths per Chunk: {PERFORMANCE_CONFIG['max_paths_per_chunk']}")
+    print(f"   • Max Cluster Size: {PERFORMANCE_CONFIG['max_cluster_size']}")
+    print()
+    
+    with Spinner("Initializing graph store"):
+        graph_store = GraphRAGStore(
+            username=NEO4J_USERNAME,
+            password=NEO4J_PASSWORD,
+            url=NEO4J_URL,  # database="nccn"
+        )
+    
+    if False:
+        pdf_path = "../data/nccn_breast_cancer.pdf"
+        index = await process_nccn_pdf(pdf_path, graph_store)
+    else:
+        index = await load_index(graph_store)
+
+    with Spinner("Setting up query engine"):
+        query_engine = GraphRAGQueryEngine(
+            graph_store=index.property_graph_store,
+            llm=llm,
+            index=index,
+            similarity_top_k=20,
+        )
+    
+    print("\n🎯 GraphRAG Query Engine Ready!")
+    print("=" * 50)
+    
     query = "How best to treat breast cancer for patients with HER2?"
     while query.strip() != "":
-        response = query_engine.query(query)
+        print(f"\n📝 Query: {query}")
+        with Spinner("Processing query"):
+            response = query_engine.query(query)
+            
+        print(f"\n📋 Response:")
         print(response.response)
-        query = input("Enter your query: ")
-    print(response.response)
+        print("\n" + "=" * 50)
+        query = input("\nEnter your query (or press Enter to exit): ")
+        
+    print("\n👋 Goodbye!")
+    
+
+if __name__ == "__main__":
+    # Apply nest_asyncio to handle nested event loops
+    import nest_asyncio
+    nest_asyncio.apply()
+    
+    try:
+        # Try to run with asyncio.run first
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "cannot be called from a running event loop" in str(e):
+            # If we're in a running event loop, use await directly
+            import asyncio
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(main())
+        else:
+            raise

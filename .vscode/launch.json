@@ -36,6 +36,16 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
-        }
+        },
+        {
+            "name": "nccn-kg",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "bioagents/nccn-kg.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
     ]
 }
