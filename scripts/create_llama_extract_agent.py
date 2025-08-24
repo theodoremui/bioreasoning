@@ -22,5 +22,6 @@ def main() -> int:
         print(f"Your extraction agent already exists: {e}")
         return 1
 
+
 if __name__ == "__main__":
     main()

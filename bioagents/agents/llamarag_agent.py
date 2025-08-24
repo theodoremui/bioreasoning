@@ -1,11 +1,11 @@
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # llamarag_agent.py
-# 
+#
 # This agent is an LlamaCloud RAG agent that can query the LlamaCloud index.
-# 
+#
 # Author: Theodore Mui
 # Date: 2025-08-16
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 import asyncio
 import hashlib
@@ -74,17 +74,19 @@ class LlamaRAGAgent(BaseAgent):
     """
     This agent is an LlamaCloud RAG agent that can query the LlamaCloud index.
     """
+
     _index: Optional[LlamaCloudIndex] = None
     _query_engine: Optional[Any] = None
     _reranker: Optional[CohereRerank] = None
-
 
     @classproperty
     def reranker(cls) -> Optional[CohereRerank]:
         if cls._reranker is None:
             try:
                 if COHERE_API_KEY:
-                    cls._reranker = CohereRerank(model=COHERE_RERANKER_MODEL, top_n=COHERE_RERANK_TOP_N)
+                    cls._reranker = CohereRerank(
+                        model=COHERE_RERANKER_MODEL, top_n=COHERE_RERANK_TOP_N
+                    )
             except Exception as e:
                 logger.warning(f"Reranker initialization skipped: {e}")
         return cls._reranker
@@ -93,7 +95,9 @@ class LlamaRAGAgent(BaseAgent):
     def index(cls) -> LlamaCloudIndex:
         if cls._index is None:
             if not LLAMACLOUD_INDEX_NAME or not LLAMACLOUD_API_KEY:
-                raise ValueError("LlamaCloud index issue: check LLAMACLOUD_INDEX_NAME LLAMACLOUD_API_KEY.")
+                raise ValueError(
+                    "LlamaCloud index issue: check LLAMACLOUD_INDEX_NAME LLAMACLOUD_API_KEY."
+                )
             cls._index = LlamaCloudIndex(
                 name=LLAMACLOUD_INDEX_NAME,
                 project_name=LLAMACLOUD_PROJECT_NAME,
@@ -112,68 +116,82 @@ class LlamaRAGAgent(BaseAgent):
             )
         return cls._query_engine
 
-
     @staticmethod
     @function_tool()
     def query_index(query: str) -> AgentResponse:
         """Query the documents and knowledge in a LlamaCloud index."""
         try:
             response = LlamaRAGAgent.query_engine.query(query)
-            
+
             sources = []
             seen_text_hashes = set()
             for source in response.source_nodes:
                 # Deduplicate by exact text content
                 text_value = source.text or ""
-                text_hash = hashlib.sha256(text_value.encode("utf-8", errors="ignore")).hexdigest()
+                text_hash = hashlib.sha256(
+                    text_value.encode("utf-8", errors="ignore")
+                ).hexdigest()
                 if text_hash in seen_text_hashes:
                     continue
                 seen_text_hashes.add(text_hash)
                 title, snippet = make_title_and_snippet(
-                    text=source.text, 
+                    text=source.text,
                     query=query,
-                    max_length=300,    
+                    max_length=300,
                 )
                 src = Source(
                     title=title,
                     snippet=snippet,
-                    source=source.metadata["file_name"] \
-                        if "file_name" in source.metadata else "",
-                    file_name=source.metadata["file_name"] \
-                        if "file_name" in source.metadata else "",
-                    start_page_label=str(source.metadata["start_page_label"]) \
-                        if "start_page_label" in source.metadata else "",
-                    end_page_label=str(source.metadata["end_page_label"]) \
-                        if "end_page_label" in source.metadata else "",
+                    source=(
+                        source.metadata["file_name"]
+                        if "file_name" in source.metadata
+                        else ""
+                    ),
+                    file_name=(
+                        source.metadata["file_name"]
+                        if "file_name" in source.metadata
+                        else ""
+                    ),
+                    start_page_label=(
+                        str(source.metadata["start_page_label"])
+                        if "start_page_label" in source.metadata
+                        else ""
+                    ),
+                    end_page_label=(
+                        str(source.metadata["end_page_label"])
+                        if "end_page_label" in source.metadata
+                        else ""
+                    ),
                     score=source.score,
                     text=source.text,
                 )
                 sources.append(src)
-                
+
             if isinstance(response, Response):
                 return AgentResponse(
                     response_str=response.response,
                     citations=sources,
                     judge_response="",
-                    route=AgentRouteType.LLAMARAG
+                    route=AgentRouteType.LLAMARAG,
                 )
             return AgentResponse(
                 response_str=str(response),
                 citations=[],
                 judge_response="",
-                route=AgentRouteType.LLAMARAG
+                route=AgentRouteType.LLAMARAG,
             )
         except Exception as e:
             logger.error(f"Error querying LlamaCloud index: {e}")
             return f"Error querying LlamaCloud index: {e}"
 
     def __init__(
-        self, name: str, 
-        model_name: str=LLM.GPT_4_1_MINI, 
+        self,
+        name: str,
+        model_name: str = LLM.GPT_4_1_MINI,
     ):
         self.instructions = INSTRUCTIONS
         self.handoff_description = HANDOFF_DESCRIPTION
-        
+
         super().__init__(name, model_name, self.instructions)
         self._agent = self._create_agent()
 
@@ -191,7 +209,7 @@ class LlamaRAGAgent(BaseAgent):
             tool_use_behavior="stop_on_first_tool",
             output_type=AgentResponse,
         )
-    
+
     @override
     async def achat(self, query_str: str) -> AgentResponse:
         logger.info(f"=> llamarag: {self.name}: {query_str}")
@@ -199,11 +217,11 @@ class LlamaRAGAgent(BaseAgent):
         response = await super().achat(query_str)
         response.route = AgentRouteType.LLAMARAG
         return response
- 
-    
-#------------------------------------------------
+
+
+# ------------------------------------------------
 # Example usage
-#------------------------------------------------
+# ------------------------------------------------
 async def smoke_tests() -> None:
     try:
         print("==> 1")
@@ -212,10 +230,17 @@ async def smoke_tests() -> None:
         # print(str(await agent.achat("What are the best treatment for patients with HER2 genes?")))
         print(str(await agent.achat("What are the key features in ICD-10?")))
         print("==> 3")
-        print(str(await agent.achat("What are the top 10 United Nations climate mandates?")))
+        print(
+            str(
+                await agent.achat(
+                    "What are the top 10 United Nations climate mandates?"
+                )
+            )
+        )
         print("==> 4")
     finally:
         print("==> 5")
+
 
 if __name__ == "__main__":
     asyncio.run(smoke_tests())

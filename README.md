@@ -633,6 +633,7 @@ bioreasoning/
 - See the `docs/` folder for:
   - **[Infrastructure Quick Start](docs/infrastructure-quickstart.md)**: Get up and running quickly
   - **[Infrastructure Documentation](docs/infrastructure.md)**: Comprehensive infrastructure guide
+  - **[Provenance & Citations](docs/provenance_and_citations.md)**: How triplet sources and citations work
   - **Architecture**: Detailed diagrams and flowcharts
   - **Processing**: Step-by-step document, mindmap, and podcast flows
   - **Troubleshooting**: Common issues and solutions

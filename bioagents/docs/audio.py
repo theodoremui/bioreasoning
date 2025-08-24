@@ -7,13 +7,16 @@ from contextlib import asynccontextmanager
 
 try:
     from pydub import AudioSegment
-except Exception:  # pragma: no cover - optional dependency for tests without audio toolchain
+except (
+    Exception
+):  # pragma: no cover - optional dependency for tests without audio toolchain
     AudioSegment = None  # type: ignore[assignment]
 from llama_index.core.llms.structured_llm import StructuredLLM
 from typing_extensions import Self
 from typing import Union, Optional, List, AsyncIterator, Literal
 from pydantic import BaseModel, ConfigDict, model_validator, Field
 from llama_index.core.llms import ChatMessage
+
 try:
     from llama_index.llms.openai import OpenAIResponses
 except Exception:  # pragma: no cover - optional dependency in some environments
@@ -171,18 +174,18 @@ class ConversationGenerationError(PodcastGeneratorError):
 class PodcastGenerator(BaseModel):
     """
     Robust podcast generator with retry logic and error handling.
-    
+
     This class provides a clean interface for podcast generation with built-in
     retry logic, error handling, and monitoring. It follows SOLID principles
     and implements the Strategy pattern for different retry behaviors.
-    
+
     Supports both OpenAI TTS-1 and ElevenLabs for speech synthesis.
     """
-    
+
     llm: StructuredLLM
     client: Union[RobustOpenAIClient, RobustElevenLabsClient] = Field(
         default=None,
-        description="TTS client to use for speech synthesis. Defaults to RobustOpenAIClient if not specified."
+        description="TTS client to use for speech synthesis. Defaults to RobustOpenAIClient if not specified.",
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -195,13 +198,14 @@ class PodcastGenerator(BaseModel):
             raise ValueError(
                 f"The output class of the structured LLM must be {MultiTurnConversation.__qualname__}, your LLM has output class: {self.llm.output_cls.__qualname__}"
             )
-        
+
         # Set default client if not provided
         if self.client is None:
             # Try to create a default OpenAI client
             try:
                 import os
                 from bioagents.utils import create_openai_client
+
                 api_key = os.getenv("OPENAI_API_KEY")
                 if api_key:
                     self.client = create_openai_client(api_key=api_key)
@@ -210,13 +214,13 @@ class PodcastGenerator(BaseModel):
                     raise ValueError("No OpenAI API key found for default TTS client")
             except Exception as e:
                 raise ValueError(f"Failed to create default TTS client: {e}")
-        
+
         # Validate client type
         if not isinstance(self.client, (RobustOpenAIClient, RobustElevenLabsClient)):
             raise ValueError(
                 f"Client must be RobustOpenAIClient or RobustElevenLabsClient, got {type(self.client).__name__}"
             )
-        
+
         return self
 
     def _build_conversation_prompt(
@@ -293,10 +297,12 @@ class PodcastGenerator(BaseModel):
                 f"Generated conversation with {len(conversation.conversation)} turns"
             )
             return conversation
-            
+
         except Exception as e:
             logger.error(f"Failed to generate conversation script: {e}")
-            raise ConversationGenerationError(f"Failed to generate conversation script: {e}") from e
+            raise ConversationGenerationError(
+                f"Failed to generate conversation script: {e}"
+            ) from e
 
     @asynccontextmanager
     async def _cleanup_files(self, files: List[str]) -> AsyncIterator[None]:
@@ -321,17 +327,21 @@ class PodcastGenerator(BaseModel):
             if not text.strip():
                 logger.warning("Empty text provided for speech generation")
                 raise AudioGenerationError("Cannot generate speech from empty text")
-            
-            logger.info(f"Generating speech for text: {text[:100]}... (length: {len(text)})")
-            
+
+            logger.info(
+                f"Generating speech for text: {text[:100]}... (length: {len(text)})"
+            )
+
             # Handle different client types
             if isinstance(self.client, RobustOpenAIClient):
                 return await self._generate_speech_openai(text, voice_id, config)
             elif isinstance(self.client, RobustElevenLabsClient):
                 return await self._generate_speech_elevenlabs(text, voice_id, config)
             else:
-                raise AudioGenerationError(f"Unsupported client type: {type(self.client).__name__}")
-            
+                raise AudioGenerationError(
+                    f"Unsupported client type: {type(self.client).__name__}"
+                )
+
         except (ElevenLabsAPIError, QuotaExceededError) as e:
             logger.error(f"ElevenLabs API error in speech generation: {e}")
             raise AudioGenerationError(f"ElevenLabs API error: {e}") from e
@@ -346,35 +356,39 @@ class PodcastGenerator(BaseModel):
         # Map voice_id to OpenAI voice names
         voice_mapping = {
             "nPczCjzI2devNBz1zQrb": "alloy",  # Default speaker1 voice
-            "Xb7hH8MSUJpSbSDYk0k2": "echo",   # Default speaker2 voice
+            "Xb7hH8MSUJpSbSDYk0k2": "echo",  # Default speaker2 voice
         }
-        
+
         # Use mapped voice or default to "alloy"
         openai_voice = voice_mapping.get(voice_id, "alloy")
-        logger.info(f"Using OpenAI voice: {openai_voice} (mapped from voice_id: {voice_id})")
-        
+        logger.info(
+            f"Using OpenAI voice: {openai_voice} (mapped from voice_id: {voice_id})"
+        )
+
         # Validate text length for OpenAI (4096 character limit)
         if len(text) > 4096:
-            logger.warning(f"Text too long ({len(text)} chars), truncating to 4096 chars")
+            logger.warning(
+                f"Text too long ({len(text)} chars), truncating to 4096 chars"
+            )
             text = text[:4096]
-        
+
         # Generate speech using OpenAI TTS-1
         audio_data = await self.client.text_to_speech(
             text=text,
             voice=openai_voice,
             model="tts-1",
             response_format="mp3",
-            speed=1.0
+            speed=1.0,
         )
-        
+
         # Save to temporary file
         temp_file = temp.NamedTemporaryFile(
             suffix=".mp3", delete=False, delete_on_close=False
         )
-        
+
         with open(temp_file.name, "wb") as f:
             f.write(audio_data)
-        
+
         logger.info(f"Successfully generated OpenAI speech file: {temp_file.name}")
         return temp_file.name
 
@@ -384,24 +398,32 @@ class PodcastGenerator(BaseModel):
         """Generate speech using ElevenLabs"""
         # Validate text length (ElevenLabs has limits)
         if len(text) > 5000:  # ElevenLabs limit is typically 5000 characters
-            logger.warning(f"Text too long ({len(text)} chars), truncating to 5000 chars")
+            logger.warning(
+                f"Text too long ({len(text)} chars), truncating to 5000 chars"
+            )
             text = text[:5000]
-        
+
         # Check if we have enough credits (optional check)
         try:
-            required_credits = self.client.estimate_credits(text, config.voice_config.model_id)
+            required_credits = self.client.estimate_credits(
+                text, config.voice_config.model_id
+            )
             logger.info(f"Estimated credits required: {required_credits}")
-            
+
             # Try to check available credits (this might fail if API key doesn't have user access)
             try:
-                has_credits = await self.client.check_credits_available(required_credits)
+                has_credits = await self.client.check_credits_available(
+                    required_credits
+                )
                 if not has_credits:
-                    logger.warning(f"Insufficient credits available. Required: {required_credits}")
+                    logger.warning(
+                        f"Insufficient credits available. Required: {required_credits}"
+                    )
             except Exception as e:
                 logger.info(f"Could not check credit balance: {e}")
         except Exception as e:
             logger.warning(f"Could not estimate credits: {e}")
-        
+
         # Use the robust client with retry logic
         # Note: text_to_speech returns an AsyncIterator, not a coroutine
         speech_iterator = self.client.text_to_speech(
@@ -512,7 +534,7 @@ try:
     # Check for required API keys
     openai_key = os.getenv("OPENAI_API_KEY")
     elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
-    
+
     if not openai_key and not elevenlabs_key:
         logger.warning("No TTS API keys found - PODCAST_GEN not initialized")
         logger.warning("Please set either OPENAI_API_KEY or ELEVENLABS_API_KEY")
@@ -525,22 +547,24 @@ try:
             model="gpt-4.1",
             api_key=openai_key,
         ).as_structured_llm(MultiTurnConversation)
-        
+
         # Determine which client to use
         if openai_key:
             # Prefer OpenAI TTS-1 as default
             from bioagents.utils import create_openai_client
+
             tts_client = create_openai_client(api_key=openai_key)
             logger.info("Initializing podcast generator with OpenAI TTS-1 (default)")
         elif elevenlabs_key:
             # Fall back to ElevenLabs if no OpenAI key
             from bioagents.utils import create_elevenlabs_client
+
             tts_client = create_elevenlabs_client(api_key=elevenlabs_key)
             logger.info("Initializing podcast generator with ElevenLabs TTS")
-        
+
         PODCAST_GEN = PodcastGenerator(llm=SLLM, client=tts_client)
         logger.info("Podcast generator initialized successfully")
-        
+
 except Exception as e:
     logger.error(f"Failed to initialize podcast generator: {e}")
     PODCAST_GEN = None

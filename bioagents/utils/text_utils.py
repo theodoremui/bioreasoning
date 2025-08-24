@@ -31,6 +31,22 @@
 from typing import List, Tuple
 import re
 
+    
+def clean_text(text_to_clean: str) -> str:
+    """
+    Clean text by removing Markdown headings and collapsing whitespace.
+    This is used to clean up the text before generating a snippet.
+    
+    Args:
+        text_to_clean: The text to clean.
+        
+    Returns:
+        The cleaned text.
+    """
+    # Remove Markdown heading markers at line starts (e.g., '#', '##', ...)
+    cleaned = re.sub(r"(?m)^\s*#{1,6}\s*", "", text_to_clean)
+    # Collapse whitespace/newlines into single spaces
+    return " ".join(cleaned.split())
 
 def make_contextual_snippet(
     text: str,
@@ -71,8 +87,9 @@ def make_contextual_snippet(
         return ""
 
     text_stripped = text.strip()
+    
     if len(text_stripped) <= max_length:
-        return text_stripped
+        return clean_text(text_stripped)
 
     # Tokenize query and search for first meaningful token (length >= 3)
     query_tokens: List[str] = [tok.lower() for tok in query.split() if len(tok) >= 3]
@@ -96,15 +113,14 @@ def make_contextual_snippet(
         start = space_before + 1
 
     # Adjust end to the last space within boundary_window after the desired end
-    space_after = text_stripped.rfind(" ", start, min(len(text_stripped), end + boundary_window))
+    space_after = text_stripped.rfind(
+        " ", start, min(len(text_stripped), end + boundary_window)
+    )
     if space_after != -1 and space_after > start:
         end = min(space_after, start + max_length)
 
     snippet = text_stripped[start:end].strip()
-    # Remove Markdown heading markers at line starts (e.g., '#', '##', ...)
-    cleaned = re.sub(r"(?m)^\s*#{1,6}\s*", "", snippet)
-    # Collapse whitespace/newlines into single spaces
-    snippet = " ".join(cleaned.split())
+    snippet = clean_text(snippet)
 
     # Add ellipses if we trimmed the original text
     if start > 0:
@@ -150,7 +166,9 @@ def make_title_and_snippet(
         raw_title = heading_match.group(2).strip()
     else:
         # 2) Otherwise pick sentence containing first query token (or first sentence)
-        query_tokens: List[str] = [tok.lower() for tok in query.split() if len(tok) >= 3]
+        query_tokens: List[str] = [
+            tok.lower() for tok in query.split() if len(tok) >= 3
+        ]
         lower_text = text.lower()
         hit_pos = -1
         for token in query_tokens:
@@ -204,5 +222,3 @@ def make_title_and_snippet(
     )
 
     return title, snippet
-
-

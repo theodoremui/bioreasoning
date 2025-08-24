@@ -1,4 +1,5 @@
 from dotenv import load_dotenv, find_dotenv
+
 _ = load_dotenv(find_dotenv())
 
 import asyncio
@@ -14,6 +15,7 @@ from agents.model_settings import ModelSettings
 from agents.tracing import set_tracing_disabled
 
 set_tracing_disabled(disabled=True)
+
 
 async def run(mcp_server: MCPServer):
     agent = Agent(
@@ -33,16 +35,15 @@ async def run(mcp_server: MCPServer):
         print(result.final_output)
         user_input = input("Enter a question: ")
 
+
 async def main():
     print("starting MCP server... ", flush=True)
     async with MCPServerStreamableHttp(
-        name="local-basic",
-        params={
-            "url": "http://localhost:8131/mcp"
-        }
+        name="local-basic", params={"url": "http://localhost:8131/mcp"}
     ) as server:
         print("\ttools: ", await server.list_tools())
         await run(server)
+
 
 if __name__ == "__main__":
     # Let's make sure the user has uv installed
