@@ -7,6 +7,9 @@
 # 1. Chit Chat Agent
 # 2. Web Reasoning Agent
 # 3. Bio MCP Agent
+# 4. Graph Agent
+# 5. LlamaRAG Agent
+# 6. LlamaMCP Agent
 #
 # Author: Theodore Mui
 # Date: 2025-04-26
@@ -27,6 +30,7 @@ from bioagents.agents.base_agent import BaseAgent
 from bioagents.agents.biomcp_agent import BioMCPAgent
 from bioagents.agents.chitchat_agent import ChitChatAgent
 from bioagents.agents.common import AgentResponse, AgentRouteType
+from bioagents.agents.graph_agent import GraphAgent
 from bioagents.agents.llamamcp_agent import LlamaMCPAgent
 from bioagents.agents.llamarag_agent import LlamaRAGAgent
 from bioagents.agents.web_agent import WebReasoningAgent
@@ -59,6 +63,7 @@ class BioConciergeAgent(BaseAgent):
         self._chit_chat_agent = ChitChatAgent(name="Chit Chat Agent")
         self._web_agent = WebReasoningAgent(name="Web Reasoning Agent")
         self._biomcp_agent = BioMCPAgent(name="Bio MCP Agent")
+        self._graph_agent = GraphAgent(name="Graph Agent")
         self._llamarag_agent = LlamaRAGAgent(name="LlamaCloud RAG Agent")
         self._llamamcp_agent = LlamaMCPAgent(name="LlamaCloud MCP Agent")
         # Start is deferred; each wrapper's achat will start on demand
@@ -66,8 +71,13 @@ class BioConciergeAgent(BaseAgent):
         # Router tools: each tool encodes a routing decision label. The Runner will
         # pick one tool (stop_on_first_tool), and we will delegate to the wrapper's achat.
         @function_tool()
+        def route_graph() -> str:
+            """Route to the Graph agent for complex reasoning about NCCN Breast Cancer Guidelines using knowledge graph relationships."""
+            return "graph"
+
+        @function_tool()
         def route_llamarag() -> str:
-            """Route to the RAG agent to answer NCCN Breast Cancer Guidelines and related medical questions."""
+            """Route to the RAG agent for document retrieval and simple questions about NCCN Breast Cancer Guidelines."""
             return "llamarag"
 
         @function_tool()
@@ -93,14 +103,16 @@ class BioConciergeAgent(BaseAgent):
         router_instructions = (
             "You are a routing specialist. Read the user's query and choose exactly ONE routing tool that best matches the need. "
             "Do NOT answer the query yourself. Follow these strict rules:\n\n"
-            "- Use route_llamarag ONLY for NCCN Breast Cancer guidelines and closely related medical or oncology topics.\n"
+            "- Use route_graph for complex reasoning questions about NCCN Breast Cancer guidelines that require understanding relationships between treatments, conditions, and patient factors.\n"
+            "- Use route_llamarag for simple document retrieval questions about NCCN Breast Cancer guidelines.\n"
             "- Use route_biomcp ONLY for biomedical/clinical topics (genes, variants, diseases, trials, papers, biomedical datasets).\n"
             "- Use route_websearch for general knowledge, science (physics/astronomy/chemistry), current events, and anything not clearly biomedical.\n"
             "- Use route_chitchat for informal conversation when no task is requested.\n\n"
             "Examples:\n"
             "Q: Why is the sky blue? -> route_websearch\n"
             "Q: What is BRCA1 and how do variants affect risk? -> route_biomcp\n"
-            "Q: NCCN recommendations for HER2+ stage II breast cancer? -> route_llamarag\n"
+            "Q: What are the NCCN recommendations for HER2+ stage II breast cancer? -> route_llamarag\n"
+            "Q: How do HER2 status, hormone receptor status, and tumor grade interact to determine treatment options in breast cancer? -> route_graph\n"
             "Q: Tell me a joke -> route_chitchat\n"
         )
 
@@ -120,6 +132,7 @@ class BioConciergeAgent(BaseAgent):
             ],
             tools=[
                 # route_llamamcp,
+                route_graph,
                 route_llamarag,
                 route_biomcp,
                 route_websearch,
@@ -219,6 +232,10 @@ class BioConciergeAgent(BaseAgent):
                 return self._construct_response_with_agent_info(
                     route_result, prefixed_text, AgentRouteType.CHITCHAT
                 )
+            if lower.startswith("graph agent:"):
+                return self._construct_response_with_agent_info(
+                    route_result, prefixed_text, AgentRouteType.GRAPH
+                )
             if (
                 lower.startswith("bio mcp agent:")
                 or lower.startswith("biomcp")
@@ -238,6 +255,12 @@ class BioConciergeAgent(BaseAgent):
                 self._web_agent.achat, query_str
             )
             wrapper_response.route = AgentRouteType.WEBSEARCH
+            return wrapper_response
+        if "graph" in route_label:
+            wrapper_response = await self._maybe_call_async(
+                self._graph_agent.achat, query_str
+            )
+            wrapper_response.route = AgentRouteType.GRAPH
             return wrapper_response
         if "llama" in route_label and "rag" in route_label:
             wrapper_response = await self._maybe_call_async(

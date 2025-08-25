@@ -47,7 +47,7 @@ class TestBioConciergeAgent:
         assert agent._agent is not None
         assert agent._agent.name == "Bio Concierge"
         assert agent._agent.model == LLM.GPT_4_1_MINI
-        assert len(agent._agent.handoffs) == 4  # Four sub-agents
+        assert len(agent._agent.handoffs) == 4  # Four sub-agents (excluding graph and llama agents)
         asyncio.run(agent.stop())
 
     @patch("bioagents.agents.bio_concierge.BioMCPAgent")
@@ -432,3 +432,147 @@ class TestBioConciergeAgent:
         )
         assert response.response_str == "Chit Chat Agent: Already prefixed response"
         assert response.route == AgentRouteType.CHITCHAT
+
+    @patch("bioagents.agents.bio_concierge.GraphAgent")
+    @patch("bioagents.agents.bio_concierge.LlamaRAGAgent")
+    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
+    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
+    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("agents.Runner.run")
+    @pytest.mark.asyncio
+    async def test_achat_graph_agent_response(
+        self, mock_runner_run, mock_chitchat, mock_web, mock_biomcp, mock_llamarag, mock_graph
+    ):
+        """Test routing to GraphAgent for complex NCCN questions."""
+        # Setup mock response
+        mock_run_result = MagicMock()
+        mock_run_result.final_output = "Graph Agent: Complex treatment relationships..."
+        mock_run_result.new_items = []
+        mock_runner_run.return_value = mock_run_result
+
+        agent = BioConciergeAgent(name="TestConcierge")
+        result = await agent.achat("How do HER2 status and hormone receptor status interact for treatment?")
+        assert isinstance(result, AgentResponse)
+        assert (
+            "Graph Agent:" in result.response_str
+            or "Bio Concierge Agent:" in result.response_str
+        )
+
+    @patch("bioagents.agents.bio_concierge.GraphAgent")
+    @patch("bioagents.agents.bio_concierge.LlamaRAGAgent")
+    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
+    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
+    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("agents.Runner.run")
+    @pytest.mark.asyncio
+    async def test_achat_llamarag_agent_response(
+        self, mock_runner_run, mock_chitchat, mock_web, mock_biomcp, mock_llamarag, mock_graph
+    ):
+        """Test routing to LlamaRAGAgent for simple NCCN questions."""
+        # Setup mock response
+        mock_run_result = MagicMock()
+        mock_run_result.final_output = "LlamaCloud RAG Agent: NCCN recommendations are..."
+        mock_run_result.new_items = []
+        mock_runner_run.return_value = mock_run_result
+
+        agent = BioConciergeAgent(name="TestConcierge")
+        result = await agent.achat("What are the NCCN recommendations for HER2+ breast cancer?")
+        assert isinstance(result, AgentResponse)
+        assert (
+            "LlamaCloud RAG Agent:" in result.response_str
+            or "Bio Concierge Agent:" in result.response_str
+        )
+
+    @patch("bioagents.agents.bio_concierge.GraphAgent")
+    @patch("bioagents.agents.bio_concierge.LlamaRAGAgent")
+    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
+    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
+    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @pytest.mark.asyncio
+    async def test_graph_agent_routing_logic(
+        self, mock_chitchat, mock_web, mock_biomcp, mock_llamarag, mock_graph
+    ):
+        """Test that GraphAgent is properly instantiated and routing works."""
+        agent = BioConciergeAgent(name="TestConcierge")
+        await agent.start()
+        
+        # Verify GraphAgent was instantiated
+        assert hasattr(agent, '_graph_agent')
+        assert agent._graph_agent is not None
+        mock_graph.assert_called_once_with(name="Graph Agent")
+        
+        await agent.stop()
+
+    @patch("bioagents.agents.bio_concierge.GraphAgent")
+    @patch("bioagents.agents.bio_concierge.LlamaRAGAgent")
+    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
+    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
+    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @pytest.mark.asyncio
+    async def test_graph_agent_delegation(
+        self, mock_chitchat, mock_web, mock_biomcp, mock_llamarag, mock_graph
+    ):
+        """Test that queries are properly delegated to GraphAgent."""
+        # Setup mock graph agent
+        mock_graph_instance = AsyncMock()
+        mock_graph_response = AgentResponse(
+            response_str="[Graph] Complex treatment analysis...",
+            route=AgentRouteType.GRAPH
+        )
+        mock_graph_instance.achat.return_value = mock_graph_response
+        mock_graph.return_value = mock_graph_instance
+
+        agent = BioConciergeAgent(name="TestConcierge")
+        
+        # Mock the router to return "graph"
+        with patch("agents.Runner.run") as mock_runner:
+            mock_run_result = MagicMock()
+            mock_run_result.final_output = "graph"
+            mock_runner.return_value = mock_run_result
+            
+            result = await agent.achat("Complex NCCN question")
+            
+            # Verify GraphAgent was called
+            mock_graph_instance.achat.assert_called_once_with("Complex NCCN question")
+            assert result.route == AgentRouteType.GRAPH
+            assert "[Graph]" in result.response_str
+
+    def test_response_prefixing_graph_agent(self):
+        """Test response prefixing for GraphAgent."""
+        from bioagents.agents.bio_concierge import BioConciergeAgent
+
+        agent = BioConciergeAgent(name="TestConcierge")
+
+        class RawItem:
+            def __init__(self, source, content=None):
+                self.source = source
+                self.content = content or []
+
+        class MockRunResult:
+            def __init__(self, final_output, new_items):
+                self.final_output = final_output
+                self.new_items = new_items
+
+        mock_item = MagicMock()
+        mock_item.type = "message_output_item"
+        mock_item.raw_item = RawItem("Graph Agent")
+        run_result = MockRunResult("Graph analysis result", [mock_item])
+        response = agent._construct_response_with_agent_info(
+            run_result, "Graph Agent: Graph analysis result", AgentRouteType.GRAPH
+        )
+        assert response.response_str == "Graph Agent: Graph analysis result"
+        assert response.route == AgentRouteType.GRAPH
+
+    def test_router_tools_include_graph(self):
+        """Test that router tools include the graph routing tool."""
+        agent = BioConciergeAgent(name="TestConcierge")
+        asyncio.run(agent.start())
+        
+        # Check that the router agent has the expected number of tools
+        assert len(agent._router_agent.tools) == 5  # graph, llamarag, biomcp, websearch, chitchat
+        
+        # Check that tool descriptions include graph-related routing
+        tool_descriptions = [tool.description for tool in agent._router_agent.tools if hasattr(tool, 'description')]
+        assert any("graph" in desc.lower() for desc in tool_descriptions)
+        
+        asyncio.run(agent.stop())
