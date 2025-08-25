@@ -133,18 +133,19 @@ class GraphRAGQueryEngine(CustomQueryEngine, IQueryEngine):
         # State for last query
         self.last_citations = []
 
-    def query(self, query_str: str) -> str:
-        """Process a query and return a response with citations.
+    def query(self, query_str: str, append_citations: bool = False) -> str:
+        """Process a query and return a response with optional citations.
 
         Args:
             query_str: Query string to process
+            append_citations: Whether to append formatted citations to response text
 
         Returns:
-            Response string with citations section
+            Response string with optional citations section
         """
-        return self.custom_query(query_str)
+        return self.custom_query(query_str, append_citations=append_citations)
 
-    def custom_query(self, query_str: str) -> str:
+    def custom_query(self, query_str: str, append_citations: bool = False) -> str:
         """Main query processing method with comprehensive strategy.
 
         Processing steps:
@@ -154,13 +155,14 @@ class GraphRAGQueryEngine(CustomQueryEngine, IQueryEngine):
         4. Extract and rank triplets from top communities
         5. Build citations from triplet provenance
         6. Generate answer using cited context
-        7. Append formatted citations section
+        7. Optionally append formatted citations section
 
         Args:
             query_str: Query string to process
+            append_citations: Whether to append formatted citations to response text
 
         Returns:
-            Complete response with citations
+            Complete response with optional citations
         """
         try:
             # Step 1: Resolve entities
@@ -207,13 +209,14 @@ class GraphRAGQueryEngine(CustomQueryEngine, IQueryEngine):
             )
             chosen_triplets = ranked_triplets[: self.max_triplets_to_use]
 
-            # Step 8: Generate response with citations
+            # Step 8: Generate response with optional citations
             return self._generate_response_with_citations(
                 chosen_triplets,
                 detail_only_blocks,
                 community_summaries,
                 chosen_community_ids,
                 query_str,
+                append_citations=append_citations,
             )
 
         except Exception as e:
@@ -322,8 +325,9 @@ class GraphRAGQueryEngine(CustomQueryEngine, IQueryEngine):
         community_summaries: Dict[int, str],
         chosen_community_ids: List[int],
         query_str: str,
+        append_citations: bool = True,
     ) -> str:
-        """Generate response with citations using multiple fallback strategies.
+        """Generate response with optional citations using multiple fallback strategies.
 
         Args:
             chosen_triplets: Selected triplets for response
@@ -331,13 +335,14 @@ class GraphRAGQueryEngine(CustomQueryEngine, IQueryEngine):
             community_summaries: Community summaries dictionary
             chosen_community_ids: Selected community IDs
             query_str: Original query string
+            append_citations: Whether to append formatted citations to response text
 
         Returns:
-            Complete response with citations
+            Complete response with optional citations
         """
-        # Strategy 1: Use triplets with citations
+        # Strategy 1: Use triplets with optional citations
         if chosen_triplets:
-            return self._generate_cited_response(chosen_triplets, query_str)
+            return self._generate_cited_response(chosen_triplets, query_str, append_citations=append_citations)
 
         # Strategy 2: Use detail blocks without citations
         elif detail_only_blocks:
@@ -349,15 +354,16 @@ class GraphRAGQueryEngine(CustomQueryEngine, IQueryEngine):
                 community_summaries, chosen_community_ids, query_str
             )
 
-    def _generate_cited_response(self, triplets: List[tuple], query_str: str) -> str:
-        """Generate response with citations from triplets.
+    def _generate_cited_response(self, triplets: List[tuple], query_str: str, append_citations: bool = False) -> str:
+        """Generate response with optional citations from triplets.
 
         Args:
             triplets: List of (triplet_key, detail) tuples
             query_str: Query string
+            append_citations: Whether to append formatted citations to the response text
 
         Returns:
-            Response with citations section
+            Response with optional citations section
         """
         # Build citations
         provenance_data = self.graph_store.triplet_provenance or {}
@@ -369,13 +375,15 @@ class GraphRAGQueryEngine(CustomQueryEngine, IQueryEngine):
         cited_context = "\n".join(context_blocks)
         answer = self._generate_answer_from_cited_context(cited_context, query_str)
 
-        # Format citations section
-        citations_section = self.citation_builder.format_citations_section(citations)
-
         # Store for programmatic access
         self.last_citations = citations
 
-        return answer.rstrip() + citations_section
+        # Optionally append formatted citations section
+        if append_citations:
+            citations_section = self.citation_builder.format_citations_section(citations)
+            return answer.rstrip() + citations_section
+        else:
+            return answer.rstrip()
 
     def _generate_detail_response(
         self, detail_blocks: List[str], query_str: str

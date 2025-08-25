@@ -14,6 +14,7 @@ class TestAgentRouteType:
         """Test that AgentRouteType has expected values."""
         assert AgentRouteType.BIOMCP.value == "biomcp"
         assert AgentRouteType.CHITCHAT.value == "chitchat"
+        assert AgentRouteType.GRAPH.value == "graph"
         assert AgentRouteType.WEBSEARCH.value == "websearch"
         assert AgentRouteType.LLAMAMCP.value == "llamamcp"
         assert AgentRouteType.LLAMARAG.value == "llamarag"
@@ -25,6 +26,7 @@ class TestAgentRouteType:
         expected_members = {
             "BIOMCP",
             "CHITCHAT",
+            "GRAPH",
             "WEBSEARCH",
             "LLAMAMCP",
             "LLAMARAG",

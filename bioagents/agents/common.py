@@ -23,9 +23,10 @@ class AgentRouteType(Enum):
 
     BIOMCP = "biomcp"
     CHITCHAT = "chitchat"
-    WEBSEARCH = "websearch"
+    GRAPH = "graph"
     LLAMAMCP = "llamamcp"
     LLAMARAG = "llamarag"
+    WEBSEARCH = "websearch"
 
     CONCIERGE = "concierge"
     REASONING = "reasoning"

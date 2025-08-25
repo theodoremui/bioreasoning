@@ -5,16 +5,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "bioconcierge",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "bioagents/agents/bio_concierge.py",
-            "console": "integratedTerminal",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
             "name": "streamlit frontend/app.py",
             "type": "debugpy",
             "request": "launch",
@@ -26,6 +16,16 @@
                 "8501"
             ],
             "jinja": true
+        },
+        {
+            "name": "bioconcierge",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "bioagents/agents/bio_concierge.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         },
         {
             "name": "biomcp",
