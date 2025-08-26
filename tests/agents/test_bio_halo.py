@@ -24,7 +24,8 @@ async def test_bio_halo_basic_flow_monocapability():
     resp = await agent.achat("What do NCCN guidelines say?")
     assert isinstance(resp, AgentResponse)
     assert resp.response_str.startswith("[HALO]")
-    assert resp.judge_response.startswith("HALO Judge Summary:")
+    # New structured evaluation should include Overall Score
+    assert "Overall Score:" in resp.response_str
 
 
 @pytest.mark.asyncio
@@ -53,6 +54,8 @@ async def test_bio_halo_multicapability_merge_and_citations():
     assert "[HALO]" in resp.response_str
     # Inline markers should appear referencing merged citations
     assert "[1" in resp.response_str or ",1" in resp.response_str
+    # Only used citations should be retained
+    assert len(resp.citations) >= 1
 
 
 @pytest.mark.asyncio
@@ -66,6 +69,68 @@ async def test_bio_halo_handles_subagent_error():
     resp = await agent.achat("latest news")
     assert "[HALO]" in resp.response_str
     assert resp.route == AgentRouteType.REASONING
+
+
+@pytest.mark.asyncio
+async def test_structured_evaluation_block_and_counts():
+    agent = BioHALOAgent(name="BioHALO")
+
+    # Prepare responses with citations
+    from bioagents.models.source import Source
+    graph_resp = AgentResponse(
+        response_str="[Graph] Graph supports relation X.",
+        route=AgentRouteType.GRAPH,
+        citations=[Source(url="https://s1", title="S1", snippet="", source="web")],
+    )
+    web_resp = AgentResponse(
+        response_str="[Web] Web adds details.",
+        route=AgentRouteType.REASONING,
+        citations=[Source(url="https://s2", title="S2", snippet="", source="web")],
+    )
+
+    agent._graph_agent = AsyncMock()
+    agent._web_agent = AsyncMock()
+    agent._graph_agent.achat = AsyncMock(return_value=graph_resp)
+    agent._web_agent.achat = AsyncMock(return_value=web_resp)
+    agent._plan = lambda q: ["graph", "web"]
+
+    # Monkeypatch judge to deterministic outputs returning a valid AgentJudgment
+    from bioagents.agents import bio_halo as mod
+
+    async def fake_judge_response(self, capability, response, query):
+        score = 0.9 if capability == "web" else 0.8
+        return mod.AgentJudgment(
+            prose_summary="Good and useful.",
+            scores={
+                "accuracy": score,
+                "completeness": score,
+                "groundedness": score,
+                "professional_tone": score,
+                "clarity_coherence": score,
+                "relevance": score,
+                "usefulness": score,
+            },
+            overall_score=score,
+            justifications={
+                "accuracy": "Reasonable and grounded.",
+                "completeness": "Covers key aspects.",
+                "groundedness": "Uses sources where relevant.",
+                "professional_tone": "Professional tone maintained.",
+                "clarity_coherence": "Clear and coherent.",
+                "relevance": "Directly relevant.",
+                "usefulness": "Actionable guidance.",
+            },
+        )
+
+    mod.HALOJudge.judge_response = fake_judge_response
+
+    resp = await agent.achat("test")
+    assert "Overall Score:" in resp.response_str
+    # Check per-subagent lines exist
+    assert "- graph:" in resp.response_str
+    assert "- web:" in resp.response_str
+    # Citations only for used indices
+    assert len(resp.citations) in (1, 2)
 
 
 @pytest.mark.asyncio

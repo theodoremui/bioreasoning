@@ -19,7 +19,7 @@ import asyncio
 import json
 import re
 from typing import Dict, List, Tuple
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, Field
 from typing import Literal
 
 from loguru import logger
@@ -31,8 +31,8 @@ from bioagents.agents.biomcp_agent import BioMCPAgent
 from bioagents.agents.web_agent import WebReasoningAgent
 from bioagents.agents.chitchat_agent import ChitChatAgent
 from bioagents.agents.llamamcp_agent import LlamaMCPAgent
-from bioagents.agents.llamarag_agent import LlamaRAGAgent
 from bioagents.models.llms import LLM
+from bioagents.agents.llamarag_agent import LlamaRAGAgent
 
 
 PLANNING_PROMPT = """
@@ -66,6 +66,82 @@ No prose. No other text.
 ## Example Output
 {{"capabilities": ["graph", "rag"]}}
 """
+
+JUDGE_PROMPT = """You are an impartial judge, evaluating one subagent's response to a user query. Your task has two parts:
+
+1. **Prose Summary** (2–3 sentences):
+   Provide a concise, professional summary highlighting the response's main strengths and areas for improvement.
+
+2. **Structured Score (JSON)**:
+   Assign each criterion a score between 0.0 and 1.0, with 1.0 being perfect. Then compute an overall weighted score. Provide a brief justification for each score.
+
+Return a JSON object **and nothing else**, with the following schema:
+
+{{
+  "prose_summary": "<2-3 sentence summary>",
+  "scores": {{
+    "accuracy": float,
+    "completeness": float,
+    "groundedness": float,
+    "professional_tone": float,
+    "clarity_coherence": float,
+    "relevance": float,
+    "usefulness": float
+  }},
+  "overall_score": float,
+  "justifications": {{
+    "accuracy": "<one-sentence justification>",
+    "completeness": "<one-sentence justification>",
+    "groundedness": "<one-sentence justification>",
+    "professional_tone": "<one-sentence justification>",
+    "clarity_coherence": "<one-sentence justification>",
+    "relevance": "<one-sentence justification>",
+    "usefulness": "<one-sentence justification>"
+  }}
+}}
+
+Guidelines:
+	•	Prose Summary should be objective, highlighting what the response does well and what could be improved.
+	•	Scores must all be between 0.0 and 1.0; if unsure, choose a sober estimate (e.g., 0.5).
+	•	Overall score should be a weighted average of the criteria—weights are equal unless otherwise specified.
+	•	Justifications should be clear, succinct, referencing specific elements of the response (e.g. "The answer cites accurate stats," "Tone is overly casual," etc.).
+	•	Do not output any extra content beyond the JSON object.
+
+## User Query
+{query}
+
+## Subagent Response
+Capability: {capability}
+Response: {response}
+
+## Citations
+{citations}
+
+## Instructions
+Evaluate this response and return ONLY the JSON object as specified above."""
+
+
+class AgentJudgment(BaseModel):
+    """Structured judgment of a subagent's response quality."""
+    
+    prose_summary: str = Field(..., description="2-3 sentence summary of strengths and areas for improvement")
+    scores: Dict[str, float] = Field(..., description="Individual criterion scores from 0.0 to 1.0")
+    overall_score: float = Field(..., ge=0.0, le=1.0, description="Overall weighted score")
+    justifications: Dict[str, str] = Field(..., description="One-sentence justification for each score")
+    
+    class Config:
+        extra = "forbid"  # Strict validation - no extra fields allowed
+
+
+class HALOJudgmentSummary(BaseModel):
+    """Summary of all subagent judgments for HALO orchestration."""
+    
+    individual_judgments: Dict[str, AgentJudgment] = Field(..., description="Judgment for each capability")
+    overall_halo_score: float = Field(..., ge=0.0, le=1.0, description="Overall HALO system score")
+    synthesis_notes: str = Field(..., description="Notes for response synthesis")
+    
+    class Config:
+        extra = "forbid"
 
 
 class CapabilityPlanner:
@@ -121,6 +197,95 @@ class CapabilityPlanner:
             logger.warning(f"CapabilityPlanner parsing failed: {e}")
             return ["chitchat"]
 
+
+class HALOJudge:
+    """LLM-based judge for evaluating subagent responses using structured output."""
+    
+    def __init__(self, model_name: str = LLM.GPT_4_1_MINI, timeout: int = 15) -> None:
+        self._llm = LLM(model_name=model_name, timeout=timeout)
+    
+    async def judge_response(self, capability: str, response: AgentResponse, query: str) -> AgentJudgment:
+        """Judge a single subagent response using LLM with structured output."""
+        
+        # Prepare citations text
+        citations_text = "None"
+        if response.citations:
+            citations_text = "\n".join([
+                f"- {getattr(c, 'url', 'Unknown source')}: {getattr(c, 'title', 'No title')}"
+                for c in response.citations
+            ])
+        
+        # Format prompt
+        prompt = JUDGE_PROMPT.format(
+            query=query,
+            capability=capability,
+            response=response.response_str or "No response",
+            citations=citations_text
+        )
+        
+        try:
+            # Get structured LLM response
+            content = await self._llm.achat_completion(
+                prompt,
+                temperature=0.1,  # Low temperature for consistent judgment
+                response_format={"type": "json_object"},
+            )
+            
+            # Parse and validate JSON
+            data = json.loads((content or "{}").strip())
+            judgment = AgentJudgment.model_validate(data)
+            
+            logger.debug(f"HALO Judge for {capability}: overall_score={judgment.overall_score}")
+            return judgment
+            
+        except Exception as e:
+            logger.warning(f"HALO Judge failed for {capability}: {e}")
+            # Fallback to basic scoring
+            return self._fallback_judgment(capability, response, query)
+    
+    def _fallback_judgment(self, capability: str, response: AgentResponse, query: str) -> AgentJudgment:
+        """Fallback judgment when LLM judging fails."""
+        
+        # Basic heuristic scoring similar to original method
+        score = 0.0
+        if response.citations:
+            score += min(0.3, len(response.citations) * 0.1)
+        if len(response.response_str or "") > 120:
+            score += 0.1
+        
+        # Domain alignment
+        if capability == "graph" and any(k in query.lower() for k in ["interact", "relationship", "correlat"]):
+            score += 0.1
+        if capability == "rag" and any(k in query.lower() for k in ["nccn", "guideline", "pdf", "document"]):
+            score += 0.1
+        
+        # Cap at 1.0
+        score = min(1.0, score)
+        
+        return AgentJudgment(
+            prose_summary=f"Fallback judgment for {capability} due to LLM evaluation failure",
+            scores={
+                "accuracy": score,
+                "completeness": score,
+                "groundedness": score,
+                "professional_tone": 0.5,
+                "clarity_coherence": score,
+                "relevance": score,
+                "usefulness": score
+            },
+            overall_score=score,
+            justifications={
+                "accuracy": "Fallback scoring due to LLM evaluation failure",
+                "completeness": "Fallback scoring due to LLM evaluation failure",
+                "groundedness": "Fallback scoring due to LLM evaluation failure",
+                "professional_tone": "Fallback scoring due to LLM evaluation failure",
+                "clarity_coherence": "Fallback scoring due to LLM evaluation failure",
+                "relevance": "Fallback scoring due to LLM evaluation failure",
+                "usefulness": "Fallback scoring due to LLM evaluation failure"
+            }
+        )
+
+
 class BioHALOAgent(BaseAgent):
     """
     HALO-style hierarchical orchestrator that can invoke multiple subagents based on 
@@ -135,7 +300,7 @@ class BioHALOAgent(BaseAgent):
     1) Plan: analyze query and propose required capabilities
     2) Role design/selection: map capabilities to concrete sub-agents
     3) Execute: run selected agents in parallel and collect results
-    4) Judge: critique agent outputs (lightweight heuristic)
+    4) Judge: critique agent outputs using LLM-based structured evaluation
     5) Synthesize: produce a concise, well-structured answer with citations
     """
 
@@ -158,11 +323,14 @@ class BioHALOAgent(BaseAgent):
 
         # Sub-agents created in start(); kept as attributes for reuse
         self._graph_agent: GraphAgent | None = None
-        self._rag_agent: 'LlamaRAGAgent' | None = None
+        self._rag_agent: LlamaRAGAgent | None = None
         self._biomcp_agent: BioMCPAgent | None = None
         self._web_agent: WebReasoningAgent | None = None
         self._chat_agent: ChitChatAgent | None = None
         self._llamamcp_agent: LlamaMCPAgent | None = None
+        
+        # LLM-based judge for response evaluation
+        self._halo_judge = HALOJudge(model_name=model_name)
 
     async def start(self) -> None:
         if self._started:
@@ -318,40 +486,82 @@ class BioHALOAgent(BaseAgent):
             logger.error(f"Sub-agent '{capability}' error: {e}")
             return capability, AgentResponse(response_str=f"[{capability}] unavailable", route=AgentRouteType.REASONING)
 
-    def _judge(self, outputs: List[Tuple[str, AgentResponse]], query: str) -> str:
-        """Produce a lightweight critique across sub-agent outputs.
+    async def _judge(self, outputs: List[Tuple[str, AgentResponse]], query: str) -> HALOJudgmentSummary:
+        """Produce LLM-based structured judgments across sub-agent outputs.
 
-        Heuristics: prefer responses with citations, reward domain-aligned routes,
-        penalize empty/short answers. Returns a concise textual judge summary.
+        Uses HALOJudge to evaluate each response with structured scoring and justification.
+        Returns a comprehensive judgment summary for synthesis guidance.
         
         Args:
             outputs: A list of tuples, each containing a capability and the corresponding AgentResponse.
             query: The user query.
             
         Returns:
-            A string containing the judge summary.
+            HALOJudgmentSummary containing individual judgments and overall system score.
         """
-        lines: List[str] = []
-        for cap, resp in outputs:
-            score = 0
-            if resp.citations:
-                score += min(3, len(resp.citations))
-            if len(resp.response_str or "") > 120:
-                score += 1
-            # Domain hint alignment
-            if cap == "graph" and any(k in query.lower() for k in ["interact", "relationship", "correlat"]):
-                score += 1
-            if cap == "rag" and any(k in query.lower() for k in ["nccn", "guideline", "pdf", "document"]):
-                score += 1
-            lines.append(f"- {cap}: score={score} citations={len(resp.citations)}")
+        
+        # Judge each subagent response individually
+        individual_judgments: Dict[str, AgentJudgment] = {}
+        
+        for capability, response in outputs:
+            try:
+                judgment = await self._halo_judge.judge_response(capability, response, query)
+                individual_judgments[capability] = judgment
+                logger.info(f"HALO Judge {capability}: score={judgment.overall_score:.3f}")
+            except Exception as e:
+                logger.warning(f"HALO Judge failed for {capability}: {e}")
+                # Use fallback judgment
+                individual_judgments[capability] = self._halo_judge._fallback_judgment(
+                    capability, response, query
+                )
+        
+        # Calculate overall HALO system score
+        if individual_judgments:
+            overall_score = sum(j.overall_score for j in individual_judgments.values()) / len(individual_judgments)
+        else:
+            overall_score = 0.0
+        
+        # Generate synthesis notes based on judgments
+        synthesis_notes = self._generate_synthesis_notes(individual_judgments, query)
+        
+        return HALOJudgmentSummary(
+            individual_judgments=individual_judgments,
+            overall_halo_score=overall_score,
+            synthesis_notes=synthesis_notes
+        )
+    
+    def _generate_synthesis_notes(self, judgments: Dict[str, AgentJudgment], query: str) -> str:
+        """Generate synthesis guidance notes based on individual judgments."""
+        
+        if not judgments:
+            return "No subagent responses available for synthesis."
+        
+        # Find best and worst performing agents
+        best_agent = max(judgments.items(), key=lambda x: x[1].overall_score)
+        worst_agent = min(judgments.items(), key=lambda x: x[1].overall_score)
+        
+        notes = [
+            f"Best performing agent: {best_agent[0]} (score: {best_agent[1].overall_score:.3f})",
+            f"Lowest performing agent: {worst_agent[0]} (score: {worst_agent[1].overall_score:.3f})"
+        ]
+        
+        # Add specific guidance based on scores
+        high_performers = [cap for cap, j in judgments.items() if j.overall_score >= 0.8]
+        if high_performers:
+            notes.append(f"High-quality responses from: {', '.join(high_performers)}")
+        
+        low_performers = [cap for cap, j in judgments.items() if j.overall_score < 0.5]
+        if low_performers:
+            notes.append(f"Consider supplementing responses from: {', '.join(low_performers)}")
+        
+        return "; ".join(notes)
 
-        return "\n".join(["HALO Judge Summary:"] + lines)
-
-    def _synthesize(self, outputs: List[Tuple[str, AgentResponse]], judge_text: str) -> AgentResponse:
+    def _synthesize(self, outputs: List[Tuple[str, AgentResponse]], judgment_summary: HALOJudgmentSummary) -> AgentResponse:
         """Merge multiple AgentResponse objects into a single response.
 
         Strategy: prioritize Graph and RAG content; append supplementary points
-        from others succinctly. Merge and de-duplicate citations.
+        from others succinctly. Merge and de-duplicate citations that are actually used
+        in the final composed answer, and add inline markers.
         """
         # Prioritization
         priority_order = {"graph": 0, "rag": 1, "biomcp": 2, "llama_mcp": 3, "web": 4, "chitchat": 5}
@@ -361,56 +571,58 @@ class BioHALOAgent(BaseAgent):
             # Remove leading tags like [Graph], [RAG], [MCP], [HALO]
             return re.sub(r"^\s*\[[^\]]+\]\s*", "", text or "").strip()
 
-        primary_text: str = ""
-        citations = []
-        seen_urls = set()
+        # Inline citation machinery: assign indices lazily only for citations that appear in final text
+        used_url_to_index: Dict[str, int] = {}
+        used_citations: List = []
+        used_per_capability: Dict[str, set] = {}
+        next_index = 1
 
-        for cap, resp in sorted_out:
-            # Gather citations with de-dupe
-            for c in resp.citations:
-                url = getattr(c, "url", None)
-                if url and url in seen_urls:
-                    continue
-                citations.append(c)
-                if url:
-                    seen_urls.add(url)
-
-        # Build a global inline citation index based on merged citations
-        citation_index_by_url: Dict[str, int] = {}
-        idx_counter = 1
-        for c in citations:
-            url = getattr(c, "url", None)
-            if url and url not in citation_index_by_url:
-                citation_index_by_url[url] = idx_counter
-                idx_counter += 1
-
-        def _append_citation_markers(text_segment: str, resp: AgentResponse) -> str:
+        def _append_citation_markers(text_segment: str, resp: AgentResponse, capability: str) -> str:
             indices: List[int] = []
+            cap_set = used_per_capability.get(capability, set())
             for c in getattr(resp, "citations", []) or []:
                 url = getattr(c, "url", None)
-                if url and url in citation_index_by_url:
-                    indices.append(citation_index_by_url[url])
+                if not url:
+                    continue
+                if url not in used_url_to_index:
+                    # assign new index lazily on first use
+                    used_url_to_index[url] = next_index_nonlocal()
+                    used_citations.append(c)
+                idx = used_url_to_index[url]
+                indices.append(idx)
+                cap_set.add(idx)
+            used_per_capability[capability] = cap_set
             # Deduplicate and sort
             indices = sorted(list(dict.fromkeys(indices)))
             if indices:
                 return f"{text_segment} [{','.join(str(i) for i in indices)}]"
             return text_segment
 
+        def next_index_nonlocal() -> int:
+            nonlocal next_index
+            current = next_index
+            next_index += 1
+            return current
+
+        primary_text: str = ""
+
         # Build unified answer: start from primary, then weave in unique sentences from others with inline markers
         if sorted_out:
             primary_cap, primary_resp = sorted_out[0]
             primary_text = _strip_leading_tag(primary_resp.response_str)
-            primary_text = _append_citation_markers(primary_text, primary_resp)
+            primary_text = _append_citation_markers(primary_text, primary_resp, primary_cap)
         final_text = "[HALO] " + (primary_text if primary_text else "No primary answer available.")
 
-        def _unique_sentence_addition(current: str, additional: str, max_new: int = 2) -> str:
+        def _unique_sentence_addition(current: str, additional: str, capability: str, resp: AgentResponse, max_new: int = 2) -> str:
             added = 0
             for sent in re.split(r"(?<=[.!?])\s+", additional):
                 clean = sent.strip()
                 if not clean:
                     continue
                 if clean not in current:
-                    current += (" " if not current.endswith(" ") else "") + clean
+                    # append with markers tied to this fragment
+                    fragment_with_markers = _append_citation_markers(clean, resp, capability)
+                    current += (" " if not current.endswith(" ") else "") + fragment_with_markers
                     added += 1
                     if added >= max_new:
                         break
@@ -420,17 +632,45 @@ class BioHALOAgent(BaseAgent):
             cap, resp = sorted_out[idx]
             text = _strip_leading_tag(resp.response_str)
             if text:
-                text_with_markers = _append_citation_markers(text, resp)
-                final_text = _unique_sentence_addition(final_text, text_with_markers)
+                final_text = _unique_sentence_addition(final_text, text, cap, resp)
 
-        # Append overall judge summary for transparency
-        if judge_text:
-            final_text += f"\n\nJudge: {judge_text}"
+        # Build structured evaluation block
+        def _first_sentence(text: str) -> str:
+            parts = re.split(r"(?<=[.!?])\s+", (text or "").strip())
+            return parts[0].strip() if parts else ""
+
+        overall_score = getattr(judgment_summary, "overall_halo_score", 0.0)
+        assessment_lines: List[str] = []
+        # Heuristic assessment using synthesis notes and best/worst
+        assessment_lines.append(f"Overall Score: {overall_score:.2f}")
+        # Convert synthesis notes into a cogent sentence if available
+        synthesis_notes = (judgment_summary.synthesis_notes or "").strip()
+        if synthesis_notes:
+            assessment_lines.append(f"Assessment: {synthesis_notes}")
+        else:
+            assessment_lines.append("Assessment: Responses were synthesized to balance breadth and grounding across agents.")
+
+        # Per-subagent lines in the order they contributed
+        judgments = getattr(judgment_summary, "individual_judgments", {})
+        for cap, resp in sorted_out:
+            j = judgments.get(cap)
+            if not j:
+                continue
+            short_just = _first_sentence(j.prose_summary)
+            src_count = len(used_per_capability.get(cap, set()))
+            assessment_lines.append(f"- {cap}: {j.overall_score:.2f} - {short_just} (with {src_count} sources)")
+
+        evaluation_block = "\n" + "\n".join(assessment_lines)
+
+        final_text = final_text + "\n\n" + evaluation_block
+
+        # Only include citations that were actually used (in the order of assigned indices)
+        citations = used_citations
 
         return AgentResponse(
             response_str=final_text,
             citations=citations,
-            judge_response=judge_text,
+            judge_response=evaluation_block.strip(),
             route=AgentRouteType.REASONING,
         )
 
@@ -451,8 +691,8 @@ class BioHALOAgent(BaseAgent):
             capabilities = await self._plan_async(query_str)
         roles = self._select_roles(capabilities)
         outputs = await self._execute_roles(query_str, roles)
-        judge_text = self._judge(outputs, query_str)
-        return self._synthesize(outputs, judge_text)
+        judgment_summary = await self._judge(outputs, query_str)
+        return self._synthesize(outputs, judgment_summary)
 
 
 #-------------------------------------
@@ -468,6 +708,7 @@ async def main():
     resp = await agent.achat(query)
     print(f">> BioHALOAgent response: {resp.response_str}")
     print(f">> # citations: {len(resp.citations)}")
+    print(f">> Judge response: {resp.judge_response}")
 
     # -----Test 2------
     query = "For elderly patients who have complex history with variety of health " +\
@@ -476,6 +717,7 @@ async def main():
     resp = await agent.achat(query)
     print(f">> BioHALOAgent response: {resp.response_str}")
     print(f">> # citations: {len(resp.citations)}")
+    print(f">> Judge response: {resp.judge_response}")
     await agent.stop()
         
 if __name__ == "__main__":
