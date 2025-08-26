@@ -62,6 +62,17 @@ class ChatPage:
         with st.sidebar:
             st.markdown("## Chat Settings")
 
+            # Orchestrator selector
+            st.markdown("### Orchestrator")
+            current = SessionManager.get_orchestrator()
+            options = ["halo", "router"]
+            index = 1 if current == "router" else 0
+            choice = st.radio(label="", options=options, index=index)
+            if choice != current:
+                SessionManager.set_orchestrator(choice)
+                SessionManager.clear_messages()
+                st.rerun()
+
             # Model selection
             self.model_selector.render()
             if st.button("Clear Chat History", type="secondary"):

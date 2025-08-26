@@ -17,6 +17,7 @@ from typing import Any, Optional
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 from bioagents.models.llms import LLM
 from bioagents.agents.bio_router import BioRouterAgent
+from bioagents.agents.bio_halo import BioHALOAgent
 
 
 class SessionManager:
@@ -39,9 +40,15 @@ class SessionManager:
         if "llm_client" not in st.session_state:
             st.session_state.llm_client = LLM(model_name=LLM.GPT_4_1_NANO)
 
-        # Initialize BioRouter agent
+        # Initialize orchestrator selection and agent
+        if "orchestrator" not in st.session_state:
+            st.session_state.orchestrator = "halo"
+
         if "reasoner" not in st.session_state:
-            st.session_state.reasoner = BioRouterAgent(name="BioConcierge")
+            if st.session_state.orchestrator == "router":
+                st.session_state.reasoner = BioRouterAgent(name="BioRouter")
+            else:
+                st.session_state.reasoner = BioHALOAgent(name="BioHALO")
 
         # Initialize chat messages
         if "messages" not in st.session_state:
@@ -80,6 +87,29 @@ class SessionManager:
         if "reasoner" not in st.session_state:
             SessionManager.initialize_session()
         return st.session_state.reasoner
+
+    @staticmethod
+    def get_orchestrator() -> str:
+        """Get the currently selected orchestrator ("router" or "halo")."""
+        if "orchestrator" not in st.session_state:
+            SessionManager.initialize_session()
+        return st.session_state.orchestrator
+
+    @staticmethod
+    def set_orchestrator(orchestrator: str) -> None:
+        """Set orchestrator and (re)create the corresponding agent.
+
+        Args:
+            orchestrator: "router" to use BioRouterAgent or "halo" to use BioHALOAgent.
+        """
+        orchestrator = (orchestrator or "").strip().lower()
+        if orchestrator not in {"router", "halo"}:
+            return
+        st.session_state.orchestrator = orchestrator
+        if orchestrator == "router":
+            st.session_state.reasoner = BioRouterAgent(name="BioConcierge")
+        else:
+            st.session_state.reasoner = BioHALOAgent(name="BioHALO")
 
     @staticmethod
     def get_messages() -> list:
