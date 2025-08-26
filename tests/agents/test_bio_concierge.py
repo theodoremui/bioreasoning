@@ -1,11 +1,11 @@
 """
-Tests for bioagents.agents.bio_concierge module.
+Tests for the router-based agent in bioagents.agents.bio_router module.
 """
 
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from bioagents.agents.bio_concierge import BioConciergeAgent
+from bioagents.agents.bio_router import BioRouterAgent
 from bioagents.agents.common import AgentResponse, AgentRouteType
 from bioagents.models.llms import LLM
 
@@ -18,12 +18,12 @@ except ImportError:
     pass
 
 
-class TestBioConciergeAgent:
-    """Test BioConciergeAgent functionality."""
+class TestBioRouterAgent:
+    """Test BioRouterAgent (router-based) functionality."""
 
-    def test_bio_concierge_creation_default(self):
-        """Test creating BioConciergeAgent with default parameters."""
-        agent = BioConciergeAgent(name="TestConcierge")
+    def test_bio_router_creation_default(self):
+        """Test creating BioRouterAgent with default parameters."""
+        agent = BioRouterAgent(name="TestConcierge")
 
         assert agent.name == "TestConcierge"
         assert agent.model_name == LLM.GPT_4_1_MINI
@@ -32,15 +32,15 @@ class TestBioConciergeAgent:
         assert agent._agent is not None
         asyncio.run(agent.stop())
 
-    def test_bio_concierge_creation_custom_model(self):
-        """Test creating BioConciergeAgent with custom model."""
-        agent = BioConciergeAgent(name="CustomConcierge", model_name=LLM.GPT_4_1_MINI)
+    def test_bio_router_creation_custom_model(self):
+        """Test creating BioRouterAgent with custom model."""
+        agent = BioRouterAgent(name="CustomConcierge", model_name=LLM.GPT_4_1_MINI)
 
         assert agent.model_name == LLM.GPT_4_1_MINI
 
     def test_create_agent_structure(self):
         """Test that _create_agent creates proper agent structure."""
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
 
         # Check that the agent was created
         asyncio.run(agent.start())
@@ -50,12 +50,12 @@ class TestBioConciergeAgent:
         assert len(agent._agent.handoffs) == 4  # Four sub-agents (excluding graph and llama agents)
         asyncio.run(agent.stop())
 
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
-    async def test_achat_bio_concierge_response(
+    async def test_achat_bio_router_response(
         self, mock_runner_run, mock_chitchat, mock_web, mock_biomcp
     ):
         # Setup mock response
@@ -64,14 +64,14 @@ class TestBioConciergeAgent:
         mock_run_result.new_items = []
         mock_runner_run.return_value = mock_run_result
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         result = await agent.achat("Test query")
         assert isinstance(result, AgentResponse)
         assert "Bio Concierge Agent:" in result.response_str
 
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
     async def test_achat_chit_chat_agent_response(
@@ -85,7 +85,7 @@ class TestBioConciergeAgent:
         mock_run_result.new_items = []
         mock_runner_run.return_value = mock_run_result
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         result = await agent.achat("Hello")
         assert isinstance(result, AgentResponse)
         assert (
@@ -93,9 +93,9 @@ class TestBioConciergeAgent:
             or "Bio Concierge Agent:" in result.response_str
         )
 
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
     async def test_achat_web_agent_response(
@@ -109,7 +109,7 @@ class TestBioConciergeAgent:
         mock_run_result.new_items = []
         mock_runner_run.return_value = mock_run_result
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         result = await agent.achat("What is the latest news in genetics?")
         assert isinstance(result, AgentResponse)
         assert (
@@ -117,9 +117,9 @@ class TestBioConciergeAgent:
             or "Bio Concierge Agent:" in result.response_str
         )
 
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
     async def test_achat_bio_mcp_agent_response(
@@ -131,7 +131,7 @@ class TestBioConciergeAgent:
         mock_run_result.new_items = []
         mock_runner_run.return_value = mock_run_result
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         result = await agent.achat("Tell me about variant rs113488022")
         assert isinstance(result, AgentResponse)
         assert (
@@ -139,9 +139,9 @@ class TestBioConciergeAgent:
             or "Bio Concierge Agent:" in result.response_str
         )
 
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
     async def test_achat_unknown_agent_response(
@@ -153,16 +153,16 @@ class TestBioConciergeAgent:
         mock_run_result.new_items = []
         mock_runner_run.return_value = mock_run_result
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         result = await agent.achat(
             "What is the airspeed velocity of an unladen swallow?"
         )
         assert isinstance(result, AgentResponse)
         assert "Bio Concierge Agent:" in result.response_str
 
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
     async def test_achat_no_source_response(
@@ -176,14 +176,14 @@ class TestBioConciergeAgent:
         mock_run_result.new_items = []
         mock_runner_run.return_value = mock_run_result
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         result = await agent.achat("Test query with no clear source")
         assert isinstance(result, AgentResponse)
         assert "Bio Concierge Agent:" in result.response_str
 
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
     async def test_achat_already_prefixed_response(
@@ -195,7 +195,7 @@ class TestBioConciergeAgent:
         mock_run_result.new_items = []
         mock_runner_run.return_value = mock_run_result
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         result = await agent.achat("Chit Chat Agent: Already prefixed response")
         assert isinstance(result, AgentResponse)
         assert (
@@ -203,9 +203,9 @@ class TestBioConciergeAgent:
             or "Bio Concierge Agent:" in result.response_str
         )
 
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
     async def test_achat_with_citations(
@@ -219,7 +219,7 @@ class TestBioConciergeAgent:
         mock_run_result.new_items = []
         mock_runner_run.return_value = mock_run_result
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         result = await agent.achat("Find a recent PubMed article on CRISPR.")
         assert isinstance(result, AgentResponse)
         assert (
@@ -232,15 +232,15 @@ class TestBioConciergeAgent:
     @pytest.mark.asyncio
     async def test_achat_lazy_initializes_agent(self):
         """achat() should lazily initialize concierge handoffs if _agent is None."""
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         agent._agent = None  # simulate uninitialized
         result = await agent.achat("Test query")
         assert isinstance(result, AgentResponse)
 
     # Keep the timeout test as a controlled (mocked) test
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
     async def test_achat_timeout_error(
@@ -249,14 +249,14 @@ class TestBioConciergeAgent:
         import asyncio
 
         mock_runner_run.side_effect = asyncio.TimeoutError()
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         agent.timeout = 1
         with pytest.raises(asyncio.TimeoutError):
             await agent.achat("Test query")
 
     def test_construct_response_with_agent_info(self):
         """Test _construct_response_with_agent_info method."""
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
 
         # Create mock RunResult
         mock_run_result = MagicMock()
@@ -273,7 +273,7 @@ class TestBioConciergeAgent:
 
     def test_multiple_message_items_source_detection(self):
         """Test source detection with multiple message items."""
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
 
         # Create multiple mock items, last one should be used for source
         mock_item1 = MagicMock()
@@ -301,9 +301,9 @@ class TestBioConciergeAgent:
 
     def test_response_prefixing_and_mapping(self):
         """Unit test for response prefixing and mapping logic in _construct_response_with_agent_info."""
-        from bioagents.agents.bio_concierge import BioConciergeAgent
+        from bioagents.agents.bio_router import BioRouterAgent
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
 
         # Simulate a RunResult with a message from Chit Chat Agent
         class RawItem:
@@ -329,9 +329,9 @@ class TestBioConciergeAgent:
         assert response.route == AgentRouteType.CHITCHAT
 
     def test_response_prefixing_web_agent(self):
-        from bioagents.agents.bio_concierge import BioConciergeAgent
+        from bioagents.agents.bio_router import BioRouterAgent
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
 
         class RawItem:
             def __init__(self, source, content=None):
@@ -354,9 +354,9 @@ class TestBioConciergeAgent:
         assert response.route == AgentRouteType.WEBSEARCH
 
     def test_response_prefixing_bio_mcp_agent(self):
-        from bioagents.agents.bio_concierge import BioConciergeAgent
+        from bioagents.agents.bio_router import BioRouterAgent
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
 
         class RawItem:
             def __init__(self, source, content=None):
@@ -379,10 +379,10 @@ class TestBioConciergeAgent:
         assert response.route == AgentRouteType.BIOMCP
 
     def test_response_prefixing_unknown_agent(self):
-        from bioagents.agents.bio_concierge import BioConciergeAgent
+        from bioagents.agents.bio_router import BioRouterAgent
         from bioagents.agents.common import AgentRouteType
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
 
         class RawItem:
             def __init__(self, source, content=None):
@@ -405,9 +405,9 @@ class TestBioConciergeAgent:
         assert response.route == AgentRouteType.REASONING
 
     def test_response_prefixing_already_prefixed(self):
-        from bioagents.agents.bio_concierge import BioConciergeAgent
+        from bioagents.agents.bio_router import BioRouterAgent
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
 
         class RawItem:
             def __init__(self, source, content=None):
@@ -433,11 +433,11 @@ class TestBioConciergeAgent:
         assert response.response_str == "Chit Chat Agent: Already prefixed response"
         assert response.route == AgentRouteType.CHITCHAT
 
-    @patch("bioagents.agents.bio_concierge.GraphAgent")
-    @patch("bioagents.agents.bio_concierge.LlamaRAGAgent")
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.GraphAgent")
+    @patch("bioagents.agents.bio_router.LlamaRAGAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
     async def test_achat_graph_agent_response(
@@ -450,7 +450,7 @@ class TestBioConciergeAgent:
         mock_run_result.new_items = []
         mock_runner_run.return_value = mock_run_result
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         result = await agent.achat("How do HER2 status and hormone receptor status interact for treatment?")
         assert isinstance(result, AgentResponse)
         assert (
@@ -458,11 +458,11 @@ class TestBioConciergeAgent:
             or "Bio Concierge Agent:" in result.response_str
         )
 
-    @patch("bioagents.agents.bio_concierge.GraphAgent")
-    @patch("bioagents.agents.bio_concierge.LlamaRAGAgent")
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.GraphAgent")
+    @patch("bioagents.agents.bio_router.LlamaRAGAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @patch("agents.Runner.run")
     @pytest.mark.asyncio
     async def test_achat_llamarag_agent_response(
@@ -475,7 +475,7 @@ class TestBioConciergeAgent:
         mock_run_result.new_items = []
         mock_runner_run.return_value = mock_run_result
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         result = await agent.achat("What are the NCCN recommendations for HER2+ breast cancer?")
         assert isinstance(result, AgentResponse)
         assert (
@@ -483,17 +483,17 @@ class TestBioConciergeAgent:
             or "Bio Concierge Agent:" in result.response_str
         )
 
-    @patch("bioagents.agents.bio_concierge.GraphAgent")
-    @patch("bioagents.agents.bio_concierge.LlamaRAGAgent")
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.GraphAgent")
+    @patch("bioagents.agents.bio_router.LlamaRAGAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @pytest.mark.asyncio
     async def test_graph_agent_routing_logic(
         self, mock_chitchat, mock_web, mock_biomcp, mock_llamarag, mock_graph
     ):
         """Test that GraphAgent is properly instantiated and routing works."""
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         await agent.start()
         
         # Verify GraphAgent was instantiated
@@ -503,11 +503,11 @@ class TestBioConciergeAgent:
         
         await agent.stop()
 
-    @patch("bioagents.agents.bio_concierge.GraphAgent")
-    @patch("bioagents.agents.bio_concierge.LlamaRAGAgent")
-    @patch("bioagents.agents.bio_concierge.BioMCPAgent")
-    @patch("bioagents.agents.bio_concierge.WebReasoningAgent")
-    @patch("bioagents.agents.bio_concierge.ChitChatAgent")
+    @patch("bioagents.agents.bio_router.GraphAgent")
+    @patch("bioagents.agents.bio_router.LlamaRAGAgent")
+    @patch("bioagents.agents.bio_router.BioMCPAgent")
+    @patch("bioagents.agents.bio_router.WebReasoningAgent")
+    @patch("bioagents.agents.bio_router.ChitChatAgent")
     @pytest.mark.asyncio
     async def test_graph_agent_delegation(
         self, mock_chitchat, mock_web, mock_biomcp, mock_llamarag, mock_graph
@@ -522,7 +522,7 @@ class TestBioConciergeAgent:
         mock_graph_instance.achat.return_value = mock_graph_response
         mock_graph.return_value = mock_graph_instance
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         
         # Mock the router to return "graph"
         with patch("agents.Runner.run") as mock_runner:
@@ -539,9 +539,9 @@ class TestBioConciergeAgent:
 
     def test_response_prefixing_graph_agent(self):
         """Test response prefixing for GraphAgent."""
-        from bioagents.agents.bio_concierge import BioConciergeAgent
+        from bioagents.agents.bio_router import BioRouterAgent
 
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
 
         class RawItem:
             def __init__(self, source, content=None):
@@ -565,7 +565,7 @@ class TestBioConciergeAgent:
 
     def test_router_tools_include_graph(self):
         """Test that router tools include the graph routing tool."""
-        agent = BioConciergeAgent(name="TestConcierge")
+        agent = BioRouterAgent(name="TestConcierge")
         asyncio.run(agent.start())
         
         # Check that the router agent has the expected number of tools

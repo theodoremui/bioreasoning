@@ -16,6 +16,7 @@ from agents.mcp import MCPServerStreamableHttp
 from agents.model_settings import ModelSettings
 from agents.tracing import set_tracing_disabled
 from loguru import logger
+from datetime import datetime
 
 set_tracing_disabled(disabled=True)
 
@@ -31,15 +32,25 @@ INSTRUCTIONS = f"""
 You are an LlamaCloud MCP agent that can query documents and knowledge about ICD-10 and medical codes.
 You should always directly answer the user's question, without asking for permission, any preambles.
 Your response should include relevant citation information from the source documents.\n
-
 ## Response Instructions:
-- Prepend the response with '[MCP]'
+- Prepend the response with '[LlamaMCP]'
+- Respond in a well structured Markdown format with proper headings and subheadings.
+- Use bold text for important terms and phrases.
+
+Today's date: {datetime.now().strftime("%Y-%m-%d")}
 """
 
 
 class LlamaMCPAgent(BaseAgent):
     """
-    This agent is an LlamaCloud MCP agent that can query the LlamaCloud index.
+    LlamaCloud MCP agent that queries LlamaCloud MCP tools and returns
+    nicely formatted answers with clear citations.
+
+    Implementation aligns with BioMCPAgent patterns:
+    - Simple Agent with output_type=AgentResponse so the LLM synthesizes
+      tool outputs into natural language (avoids raw JSON dumps)
+    - Per-operation MCP server lifecycle inside achat() for robust async behavior
+    - Clear route set to LLAMAMCP and BaseAgent citation extraction
     """
 
     def __init__(
@@ -56,67 +67,26 @@ class LlamaMCPAgent(BaseAgent):
         self._agent: Optional[Agent] = self._create_agent()
 
     def _create_agent(self) -> Agent:
-        """Create the core Agent and instantiate the MCP transport (no connect)."""
-        # Instantiate transport with robust timeouts; connect later in start()
-        self._mcp_server = MCPServerStreamableHttp(
-            name="LlamaCloud MCP Server",
-            params={
-                "url": DOCMCP_URL,
-                "timeout": timedelta(seconds=20),
-                "sse_read_timeout": timedelta(seconds=120),
-                "terminate_on_close": False,
-            },
-            client_session_timeout_seconds=120,
-        )
-
+        """Create the core Agent (no persistent MCP connection)."""
         return Agent(
             name=self.name,
             model=self.model_name,
             instructions=self.instructions,
             handoff_description=self.handoff_description,
             model_settings=ModelSettings(tool_choice="required"),
-            tool_use_behavior="stop_on_first_tool",
+            output_type=AgentResponse,
         )
 
     async def start(self) -> None:
+        """No persistent connection; ensure Agent exists and mark started."""
         if self._started:
             return
-        try:
-            if self._mcp_server is None:
-                self._agent = self._create_agent()
-            await self._mcp_server.__aenter__()  # type: ignore[arg-type]
-            try:
-                tool_list = await self._mcp_server.list_tools()  # type: ignore[union-attr]
-                print(
-                    f"\t# LlamaMCPAgent tools: {len(tool_list)}: {[tool.name for tool in tool_list]}"
-                )
-            except Exception:
-                pass
-            if self._agent is not None:
-                try:
-                    self._agent.mcp_servers = [self._mcp_server]  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-            self._started = True
-        except Exception:
-            if self._mcp_server is not None:
-                try:
-                    await self._mcp_server.__aexit__(None, None, None)
-                except Exception:
-                    pass
-            self._mcp_server = None
-            self._started = False
-            raise
+        if self._agent is None:
+            self._agent = self._create_agent()
+        self._started = True
 
     async def aclose(self) -> None:
-        if self._mcp_server is not None:
-            try:
-                await self._mcp_server.__aexit__(None, None, None)
-            except Exception:
-                pass
-            finally:
-                self._mcp_server = None
-        # Keep the Agent instance available; just detach MCP servers
+        # Detach any MCP server bindings; nothing persistent is kept.
         if self._agent is not None:
             try:
                 self._agent.mcp_servers = []  # type: ignore[attr-defined]
@@ -137,15 +107,52 @@ class LlamaMCPAgent(BaseAgent):
     async def achat(self, query_str: str) -> AgentResponse:
         logger.info(f"=> llamamcp: {self.name}: {query_str}")
 
+        # Per-operation MCP connection to avoid raw JSON dumps and stale event loops.
         try:
-            if not self._started:
-                await self.start()
-            result = await Runner.run(starting_agent=self._agent, input=query_str)
-            return self._construct_response(result, "", AgentRouteType.LLAMAMCP)
+            if self._agent is None:
+                self._agent = self._create_agent()
+
+            server = MCPServerStreamableHttp(
+                name="LlamaCloud MCP Server",
+                params={
+                    "url": DOCMCP_URL,
+                    "timeout": timedelta(seconds=30),
+                    "sse_read_timeout": timedelta(seconds=120),
+                    "terminate_on_close": False,
+                },
+                client_session_timeout_seconds=120,
+            )
+
+            await server.__aenter__()
+            try:
+                # Optional: list tools for diagnostics (do not fail the request)
+                try:
+                    tool_list = await server.list_tools()
+                    print(
+                        f"\t# LlamaMCPAgent tools: {len(tool_list)}: {[tool.name for tool in tool_list]}"
+                    )
+                except Exception:
+                    pass
+
+                # Attach server to the Agent so the LLM can call tools and then synthesize
+                try:
+                    self._agent.mcp_servers = [server]  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+
+                # Let BaseAgent drive the run and construct a clean response with citations
+                response = await super().achat(query_str)
+                response.route = AgentRouteType.LLAMAMCP
+                return response
+            finally:
+                try:
+                    await server.__aexit__(None, None, None)
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"MCP connection failed to {DOCMCP_URL}: {e}")
             return AgentResponse(
-                response_str=f"[LlamaCloud MCP] MCP server not reachable at {DOCMCP_URL}. Start it first, then retry.",
+                response_str=f"[MCP] MCP server not reachable at {DOCMCP_URL}.",
                 route=AgentRouteType.LLAMAMCP,
             )
 

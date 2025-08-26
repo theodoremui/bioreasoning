@@ -23,7 +23,7 @@ A comprehensive biomedical reasoning agent system that intelligently routes quer
 
 ## Overview
 
-The Bio Reasoning Project implements an intelligent agent orchestration system designed for biomedical research, document analysis, and general knowledge queries. The core **BioConciergeAgent** acts as a smart router that analyzes incoming queries and delegates them to the most appropriate specialized sub-agent or processing pipeline.
+The Bio Reasoning Project implements an intelligent agent orchestration system designed for biomedical research, document analysis, and general knowledge queries. The core **BioRouterAgent** (router-based agent) analyzes incoming queries and delegates them to the most appropriate specialized sub-agent or processing pipeline.
 
 ### Key Features
 - **Intelligent Query Routing**: Automatically determines the best sub-agent for each query
@@ -61,7 +61,7 @@ flowchart LR
     User([User])
     subgraph Client
         UI([Streamlit Knowledge Client])
-        Concierge([BioConcierge Agent])
+        Concierge([Router Agent])
     end
 
     subgraph Servers
@@ -95,7 +95,7 @@ flowchart LR
 ### Routing overview
 ```mermaid
 flowchart TD
-    Q([User Query]) --> R["BioConcierge Router<br/>choose exactly one"]
+    Q([User Query]) --> R["Router Agent<br/>choose exactly one"]
     R -->|biomedical| A1[BioMCP Agent]
     R -->|documents/RAG| A2[DocMCP Agent]
     R -->|general/current events| A3[WebSearch Agent]
@@ -112,7 +112,7 @@ flowchart TD
 sequenceDiagram
     participant U as User
     participant UI as Streamlit UI
-    participant C as BioConcierge
+    participant C as Router
     participant A2 as DocMCP Agent
     participant D as DocMCP Server
     U->>UI: Ask question / upload docs
@@ -259,9 +259,9 @@ Environment variables (optional overrides):
 ```bash
 python -m bioagents.agents.biomcp_agent
 ```
-- Concierge router demo:
+- Router demo:
 ```bash
-python -m bioagents.agents.bio_concierge
+python -m bioagents.agents.bio_router
 ```
 
 > These scripts log tool discovery and basic connectivity.
@@ -280,13 +280,13 @@ Both servers speak the MCP streamable HTTP protocol consumed by the agents.
 
 ## Agents & Routing
 
-Four agents are orchestrated by `bioagents/agents/bio_concierge.py`:
+Four agents are orchestrated by `bioagents/agents/bio_router.py`:
 - **BioMCP Agent**: Talks to BioMCP server for biomedical queries
 - **DocMCP Agent**: Talks to DocMCP (LlamaCloud index) for document/RAG workflows
 - **WebSearch Agent**: Searches the public web for general knowledge and current events
 - **ChitChat Agent**: Casual conversation fallback
 
-The BioConcierge router selects exactly one route per query and delegates.
+The router selects exactly one route per query and delegates.
 
 ---
 
@@ -543,13 +543,13 @@ docker-compose exec -T postgres psql -U llama notebookllama < backup.sql
 - Click the button and listen to the result
 
 ### 4. Chat Routing Behavior
-- The Streamlit chat page (`frontend/pages/1_Chat.py`) invokes the BioConcierge router.
+- The Streamlit chat page (`frontend/pages/1_Chat.py`) invokes the Router agent.
 - The router uses tools (route_biomcp, route_llamarag, route_websearch, route_chitchat) to choose one path.
 - For biomedical queries, it picks the BioMCP Agent; for document/RAG, the DocMCP Agent; otherwise websearch or chitchat.
 
 ```mermaid
 flowchart TD
-    UI([Chat UI]) --> Concierge[BioConcierge]
+    UI([Chat UI]) --> Concierge[Router]
     Concierge -->|route_biomcp| Bio[BioMCP Agent]
     Concierge -->|route_llamarag| Doc[DocMCP Agent]
     Concierge -->|route_websearch| Web[WebSearch Agent]

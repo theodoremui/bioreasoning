@@ -16,7 +16,7 @@ from typing import Any, Optional
 # Add project root to Python path for bioagents import
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 from bioagents.models.llms import LLM
-from bioagents.agents.bio_concierge import BioConciergeAgent
+from bioagents.agents.bio_router import BioRouterAgent
 
 
 class SessionManager:
@@ -39,9 +39,9 @@ class SessionManager:
         if "llm_client" not in st.session_state:
             st.session_state.llm_client = LLM(model_name=LLM.GPT_4_1_NANO)
 
-        # Initialize BioConcierge agent
+        # Initialize BioRouter agent
         if "reasoner" not in st.session_state:
-            st.session_state.reasoner = BioConciergeAgent(name="BioConcierge")
+            st.session_state.reasoner = BioRouterAgent(name="BioConcierge")
 
         # Initialize chat messages
         if "messages" not in st.session_state:
@@ -67,13 +67,13 @@ class SessionManager:
         return st.session_state.llm_client
 
     @staticmethod
-    def get_reasoner() -> BioConciergeAgent:
+    def get_reasoner() -> BioRouterAgent:
         """
-        Get the BioConcierge agent from session state.
+        Get the router-based reasoning agent from session state.
 
         Returns:
-            BioConciergeAgent: The initialized reasoning agent
-
+            BioRouterAgent: The initialized reasoning agent
+        
         Raises:
             KeyError: If session is not properly initialized
         """
