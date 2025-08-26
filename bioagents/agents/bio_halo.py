@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Dict, List, Tuple
 from pydantic import BaseModel, ValidationError
 from typing import Literal
@@ -26,13 +27,41 @@ from loguru import logger
 from bioagents.agents.base_agent import BaseAgent
 from bioagents.agents.common import AgentResponse, AgentRouteType
 from bioagents.agents.graph_agent import GraphAgent
-from bioagents.agents.llamarag_agent import LlamaRAGAgent
 from bioagents.agents.biomcp_agent import BioMCPAgent
 from bioagents.agents.web_agent import WebReasoningAgent
 from bioagents.agents.chitchat_agent import ChitChatAgent
 from bioagents.agents.llamamcp_agent import LlamaMCPAgent
+from bioagents.agents.llamarag_agent import LlamaRAGAgent
 from bioagents.models.llms import LLM
 
+
+PLANNING_PROMPT = """
+You are a planner deciding which specialists to invoke for a user query.
+## Available capabilities
+
+capabilities: graph, rag, biomcp, web, llama_mcp, chitchat.
+
+## Guidelines
+You should strongly prefer at least 2 or more complementary capabilities when in doubt,
+unless you are sure that the query is chitchat or exactly 1 capability is enough.
+
+The selected capabilities should involve diversified sources 
+(e.g., combine biomcp with rag or web).
+
+For biomedical clinical queries, include biomcp plus one of rag/web.
+For document/guideline queries include rag.
+For relationship/network questions include graph.
+
+## Query
+Query: {query}
+
+## Output instructions
+Return ONLY JSON with a key 'capabilities' whose value is an ordered list 
+of any of these strings.  No prose. No other text.
+
+## Example Output
+{"capabilities": ["graph", "rag"]}
+"""
 
 class BioHALOAgent(BaseAgent):
     """
@@ -80,13 +109,24 @@ class BioHALOAgent(BaseAgent):
     async def start(self) -> None:
         if self._started:
             return
-        # Instantiate sub-agents (lazy; their own achat handles per-call init)
-        self._graph_agent = GraphAgent(name="Graph Agent")
-        self._rag_agent = LlamaRAGAgent(name="LlamaCloud RAG Agent")
-        self._biomcp_agent = BioMCPAgent(name="Bio MCP Agent")
-        self._web_agent = WebReasoningAgent(name="Web Reasoning Agent")
-        self._chat_agent = ChitChatAgent(name="Chit Chat Agent")
-        self._llamamcp_agent = LlamaMCPAgent(name="LlamaCloud MCP Agent")
+        # Instantiate sub-agents only if not pre-injected (to allow tests/mocks)
+        if self._graph_agent is None:
+            self._graph_agent = GraphAgent(name="Graph Agent")
+        # Lazy import LlamaRAGAgent to avoid optional dependency import errors at module import time
+        if self._rag_agent is None:
+            try:
+                from bioagents.agents.llamarag_agent import LlamaRAGAgent  # type: ignore
+                self._rag_agent = LlamaRAGAgent(name="LlamaCloud RAG Agent")
+            except Exception:
+                self._rag_agent = None
+        if self._biomcp_agent is None:
+            self._biomcp_agent = BioMCPAgent(name="Bio MCP Agent")
+        if self._web_agent is None:
+            self._web_agent = WebReasoningAgent(name="Web Reasoning Agent")
+        if self._chat_agent is None:
+            self._chat_agent = ChitChatAgent(name="Chit Chat Agent")
+        if self._llamamcp_agent is None:
+            self._llamamcp_agent = LlamaMCPAgent(name="LlamaCloud MCP Agent")
         self._started = True
 
     async def stop(self) -> None:
@@ -109,21 +149,21 @@ class BioHALOAgent(BaseAgent):
         ]
 
     async def _plan_with_llm(self, query: str) -> List[str]:
-        """Optional LLM-backed planner returning capability tags.
+        """LLM-backed planner returning capability tags -- which are the names 
+        of the sub-agents to invoke.
 
         Uses a small model to classify which specialists are helpful,
         returning strictly validated capabilities via Pydantic.
+        
+        Args:
+            query: The user query.
+            
+        Returns:
+            A list of capability tags.
         """
         try:
             llm = LLM(model_name=LLM.GPT_4_1_MINI, timeout=10)
-            prompt = (
-                "You are a planner deciding which specialists to invoke for a user query.\n"
-                "Available capabilities: graph, rag, biomcp, web, llama_mcp, chitchat.\n"
-                "Return ONLY JSON with a key 'capabilities' whose value is an ordered list of any of these strings.\n"
-                "No prose.\n\n"
-                f"Query: {query}\n"
-                "Example: {\"capabilities\": [\"graph\", \"rag\"]}"
-            )
+            prompt = PLANNING_PROMPT.format(query=query)
             # Prefer JSON responses; rely on strict schema validation
             content = await llm.achat_completion(
                 prompt,
@@ -154,10 +194,10 @@ class BioHALOAgent(BaseAgent):
         """Synchronous wrapper to enable test monkeypatching; uses LLM planner."""
         try:
             loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Let caller await the async planner path
+                return []
             return loop.run_until_complete(self._plan_with_llm(query))
-        except RuntimeError:
-            # If already in an event loop, rely on async path from caller
-            return []
         except Exception:
             return ["chitchat"]
 
@@ -165,6 +205,16 @@ class BioHALOAgent(BaseAgent):
     # HALO tier 2: Role selection/mapping
     # --------------------------------------
     def _select_roles(self, capabilities: List[str]) -> List[Tuple[str, BaseAgent]]:
+        """
+        Select the appropriate sub-agents based on the capabilities.
+        
+        Args:
+            capabilities: A list of capabilities (e.g. graph, rag, biomcp, web, chitchat) 
+                          to select from.
+            
+        Returns:
+            A list of tuples, each containing a capability and the corresponding sub-agent.
+        """
         mapping: Dict[str, BaseAgent] = {}
         if self._graph_agent:
             mapping["graph"] = self._graph_agent
@@ -184,12 +234,29 @@ class BioHALOAgent(BaseAgent):
             agent = mapping.get(cap)
             if agent is not None:
                 selected.append((cap, agent))
+                
+        logger.info(f"***> selected {len(selected)} roles: {selected}")
         return selected
 
     # --------------------------------------
     # HALO tier 3: Execution & Synthesis
     # --------------------------------------
-    async def _execute_roles(self, query: str, roles: List[Tuple[str, BaseAgent]]) -> List[Tuple[str, AgentResponse]]:
+    async def _execute_roles(
+        self, 
+        query: str, 
+        roles: List[Tuple[str, BaseAgent]]
+    ) -> List[Tuple[str, AgentResponse]]:
+        """
+        Execute the roles (sub-agents) and return the results.
+        
+        Args:
+            query: The user query.
+            roles: A list of tuples, each containing a capability and the corresponding sub-agent.
+            
+        Returns:
+            A list of tuples, each containing a capability and the corresponding AgentResponse.
+        """
+        
         tasks = []
         for cap, agent in roles:
             tasks.append(self._execute_one(cap, agent, query))
@@ -202,7 +269,24 @@ class BioHALOAgent(BaseAgent):
             outputs.append(r)  # (capability, AgentResponse)
         return outputs
 
-    async def _execute_one(self, capability: str, agent: BaseAgent, query: str) -> Tuple[str, AgentResponse]:
+    async def _execute_one(
+        self, 
+        capability: str, 
+        agent: BaseAgent, 
+        query: str
+    ) -> Tuple[str, AgentResponse]:
+        """
+        Execute one sub-agent and return the result.
+        
+        Args:
+            capability: The capability to execute.
+            agent: The sub-agent to execute.
+            query: The user query.
+            
+        Returns:
+            A tuple containing the capability (e.g. graph, rag, biomcp, web, chitchat) 
+            and the AgentResponse.
+        """
         try:
             resp = await agent.achat(query)
             return capability, resp
@@ -215,6 +299,13 @@ class BioHALOAgent(BaseAgent):
 
         Heuristics: prefer responses with citations, reward domain-aligned routes,
         penalize empty/short answers. Returns a concise textual judge summary.
+        
+        Args:
+            outputs: A list of tuples, each containing a capability and the corresponding AgentResponse.
+            query: The user query.
+            
+        Returns:
+            A string containing the judge summary.
         """
         lines: List[str] = []
         for cap, resp in outputs:
@@ -242,8 +333,11 @@ class BioHALOAgent(BaseAgent):
         priority_order = {"graph": 0, "rag": 1, "biomcp": 2, "llama_mcp": 3, "web": 4, "chitchat": 5}
         sorted_out = sorted(outputs, key=lambda t: priority_order.get(t[0], 99))
 
-        primary_text_parts: List[str] = []
-        supplementary_parts: List[str] = []
+        def _strip_leading_tag(text: str) -> str:
+            # Remove leading tags like [Graph], [RAG], [MCP], [HALO]
+            return re.sub(r"^\s*\[[^\]]+\]\s*", "", text or "").strip()
+
+        primary_text: str = ""
         citations = []
         seen_urls = set()
 
@@ -257,18 +351,57 @@ class BioHALOAgent(BaseAgent):
                 if url:
                     seen_urls.add(url)
 
-        for idx, (cap, resp) in enumerate(sorted_out):
-            text = (resp.response_str or "").strip()
-            if not text:
-                continue
-            if idx == 0:
-                primary_text_parts.append(text)
-            else:
-                supplementary_parts.append(f"\n\n[From {cap}] {text}")
+        # Build a global inline citation index based on merged citations
+        citation_index_by_url: Dict[str, int] = {}
+        idx_counter = 1
+        for c in citations:
+            url = getattr(c, "url", None)
+            if url and url not in citation_index_by_url:
+                citation_index_by_url[url] = idx_counter
+                idx_counter += 1
 
-        final_text = "[HALO] " + (" ".join(primary_text_parts) if primary_text_parts else "No primary answer available.")
-        if supplementary_parts:
-            final_text += "\n\nAdditional insights:" + "".join(supplementary_parts)
+        def _append_citation_markers(text_segment: str, resp: AgentResponse) -> str:
+            indices: List[int] = []
+            for c in getattr(resp, "citations", []) or []:
+                url = getattr(c, "url", None)
+                if url and url in citation_index_by_url:
+                    indices.append(citation_index_by_url[url])
+            # Deduplicate and sort
+            indices = sorted(list(dict.fromkeys(indices)))
+            if indices:
+                return f"{text_segment} [{','.join(str(i) for i in indices)}]"
+            return text_segment
+
+        # Build unified answer: start from primary, then weave in unique sentences from others with inline markers
+        if sorted_out:
+            primary_cap, primary_resp = sorted_out[0]
+            primary_text = _strip_leading_tag(primary_resp.response_str)
+            primary_text = _append_citation_markers(primary_text, primary_resp)
+        final_text = "[HALO] " + (primary_text if primary_text else "No primary answer available.")
+
+        def _unique_sentence_addition(current: str, additional: str, max_new: int = 2) -> str:
+            added = 0
+            for sent in re.split(r"(?<=[.!?])\s+", additional):
+                clean = sent.strip()
+                if not clean:
+                    continue
+                if clean not in current:
+                    current += (" " if not current.endswith(" ") else "") + clean
+                    added += 1
+                    if added >= max_new:
+                        break
+            return current
+
+        for idx in range(1, len(sorted_out)):
+            cap, resp = sorted_out[idx]
+            text = _strip_leading_tag(resp.response_str)
+            if text:
+                text_with_markers = _append_citation_markers(text, resp)
+                final_text = _unique_sentence_addition(final_text, text_with_markers)
+
+        # Append overall judge summary for transparency
+        if judge_text:
+            final_text += f"\n\nJudge: {judge_text}"
 
         return AgentResponse(
             response_str=final_text,
@@ -298,3 +431,28 @@ class BioHALOAgent(BaseAgent):
         return self._synthesize(outputs, judge_text)
 
 
+#-------------------------------------
+# Test code
+#-------------------------------------
+
+async def main():
+    agent = BioHALOAgent()
+    await agent.start()
+    
+    # -----Test 1------
+    query = "What is the best way to treat an elderly patient with HER2 breast cancer?"
+    resp = await agent.achat(query)
+    print(f">> BioHALOAgent response: {resp.response_str}")
+    print(f">> # citations: {len(resp.citations)}")
+
+    # -----Test 2------
+    query = "For elderly patients who have complex history with variety of health " +\
+        "problems, how should we first assess their risk of remission after they " +\
+        "have completed a full dose of chemotherapy?"
+    resp = await agent.achat(query)
+    print(f">> BioHALOAgent response: {resp.response_str}")
+    print(f">> # citations: {len(resp.citations)}")
+    await agent.stop()
+        
+if __name__ == "__main__":
+    asyncio.run(main())

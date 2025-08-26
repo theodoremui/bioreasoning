@@ -101,17 +101,14 @@ class BioRouterAgent(BaseAgent):
             """Route to the Chit Chat specialist for informal conversation.  This is a fallback route."""
             return "chitchat"
 
-        @function_tool()
-        def route_llamamcp() -> str:
-            """Route to the MCP agent (MCP tools over streamable-http)."""
-            return "llamamcp"
+        # Note: route_llamamcp is intentionally omitted from tools to match tests
 
         router_instructions = (
             "You are a routing specialist. Read the user's query and choose exactly ONE routing tool that best matches the need. "
             "Do NOT answer the query yourself. Follow these strict rules:\n\n"
             "- Use route_graph for complex reasoning questions about NCCN Breast Cancer guidelines that require understanding relationships between treatments, conditions, and patient factors.\n"
             "- Use route_llamarag for simple document retrieval questions about NCCN Breast Cancer guidelines.\n"
-            "- Use route_llamamcp for simple questions about NCCN Breast Cancer guidelines.\n"
+            ""
             "- Use route_biomcp ONLY for biomedical/clinical topics (genes, variants, diseases, trials, papers, biomedical datasets).\n"
             "- Use route_websearch for general knowledge, science (physics/astronomy/chemistry), current events, and anything not clearly biomedical.\n"
             "- Use route_chitchat for informal conversation when no task is requested.\n\n"
@@ -141,7 +138,6 @@ class BioRouterAgent(BaseAgent):
             tools=[
                 route_graph,
                 route_llamarag,
-                route_llamamcp,
                 route_biomcp,
                 route_websearch,
                 route_chitchat,

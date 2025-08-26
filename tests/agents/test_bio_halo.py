@@ -5,6 +5,7 @@ import pytest
 
 from bioagents.agents.bio_halo import BioHALOAgent
 from bioagents.agents.common import AgentResponse, AgentRouteType
+from bioagents.models.source import Source
 
 
 @pytest.mark.asyncio
@@ -31,8 +32,16 @@ async def test_bio_halo_multicapability_merge_and_citations():
     agent = BioHALOAgent(name="BioHALO")
 
     # Two sub-agents respond, one with citations
-    rag_resp = AgentResponse(response_str="[RAG] Guideline text", route=AgentRouteType.LLAMARAG)
-    graph_resp = AgentResponse(response_str="[Graph] Relationship analysis", route=AgentRouteType.GRAPH)
+    rag_resp = AgentResponse(
+        response_str="[RAG] Guideline text",
+        route=AgentRouteType.LLAMARAG,
+        citations=[Source(url="https://example.com/nccn", title="NCCN", snippet="", source="web")],
+    )
+    graph_resp = AgentResponse(
+        response_str="[Graph] Relationship analysis",
+        route=AgentRouteType.GRAPH,
+        citations=[Source(url="https://example.com/graphref", title="Graph Ref", snippet="", source="web")],
+    )
     agent._rag_agent = AsyncMock()
     agent._graph_agent = AsyncMock()
     agent._rag_agent.achat = AsyncMock(return_value=rag_resp)
@@ -42,8 +51,8 @@ async def test_bio_halo_multicapability_merge_and_citations():
 
     resp = await agent.achat("How do HER2 status and HR status interact under NCCN?")
     assert "[HALO]" in resp.response_str
-    # Primary should prefer graph for relationship queries
-    assert "[From" in resp.response_str or "Relationship" in resp.response_str
+    # Inline markers should appear referencing merged citations
+    assert "[1" in resp.response_str or ",1" in resp.response_str
 
 
 @pytest.mark.asyncio
