@@ -131,7 +131,6 @@ We provide a concrete HALO-style orchestrator named `BioHALOAgent` that compleme
 - **Parallel Execution**: Runs selected agents concurrently using `asyncio.gather()`
 - **Response Judging**: Lightweight heuristic scoring based on citations, response length, and domain alignment
 - **Intelligent Synthesis**: Merges responses with inline citation markers `[1,2]` and de-duplicates sources
-- **Lazy Import Handling**: Gracefully handles optional dependencies like `LlamaRAGAgent`
 
 **Implementation Details:**
 ```python
@@ -141,7 +140,7 @@ class BioHALOAgent(BaseAgent):
     def __init__(self, name: str = "BioHALO", model_name: str = LLM.GPT_4_1_MINI):
         # Sub-agents created in start(); kept as attributes for reuse
         self._graph_agent: GraphAgent | None = None
-        self._rag_agent: 'LlamaRAGAgent' | None = None
+        self._rag_agent: LlamaRAGAgent | None = None
         self._biomcp_agent: BioMCPAgent | None = None
         self._web_agent: WebReasoningAgent | None = None
         self._chat_agent: ChitChatAgent | None = None

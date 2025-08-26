@@ -31,8 +31,8 @@ from bioagents.agents.biomcp_agent import BioMCPAgent
 from bioagents.agents.web_agent import WebReasoningAgent
 from bioagents.agents.chitchat_agent import ChitChatAgent
 from bioagents.agents.llamamcp_agent import LlamaMCPAgent
-from bioagents.models.llms import LLM
 from bioagents.agents.llamarag_agent import LlamaRAGAgent
+from bioagents.models.llms import LLM
 
 
 PLANNING_PROMPT = """
