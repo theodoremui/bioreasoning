@@ -24,8 +24,10 @@ async def test_bio_halo_basic_flow_monocapability():
     resp = await agent.achat("What do NCCN guidelines say?")
     assert isinstance(resp, AgentResponse)
     assert resp.response_str.startswith("[HALO]")
-    # New structured evaluation should include Overall Score
-    assert "Overall Score:" in resp.response_str
+    # Structured evaluation is provided in judge_response for frontend expander
+    assert resp.judge_response
+    assert "**Score**:" in resp.judge_response
+    assert "**Assessment**:" in resp.judge_response
 
 
 @pytest.mark.asyncio
@@ -125,10 +127,11 @@ async def test_structured_evaluation_block_and_counts():
     mod.HALOJudge.judge_response = fake_judge_response
 
     resp = await agent.achat("test")
-    assert "Overall Score:" in resp.response_str
+    assert resp.judge_response
+    assert "**Score**:" in resp.judge_response
     # Check per-subagent lines exist
-    assert "- graph:" in resp.response_str
-    assert "- web:" in resp.response_str
+    assert "- graph:" in resp.judge_response
+    assert "- web:" in resp.judge_response
     # Citations only for used indices
     assert len(resp.citations) in (1, 2)
 

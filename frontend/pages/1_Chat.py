@@ -116,6 +116,14 @@ class ChatPage:
                 ):
                     self._render_citations(message["citations"])
 
+                # Display judge section if available for assistant messages
+                if (
+                    message["role"] == "assistant"
+                    and "judge_response" in message
+                    and message["judge_response"]
+                ):
+                    self._render_judge(message["judge_response"])
+
     def _render_citations(self, sources: list) -> None:
         """
         Render citations in an expandable section.
@@ -145,6 +153,45 @@ class ChatPage:
                 if hasattr(src, "score") and src.score and src.score > 0.0:
                     render_text += f" ({src.score:.2f})"
                 st.markdown(render_text)
+
+    def _render_judge(self, judge_text: str) -> None:
+        """Render judge results in an expandable section similar to Sources."""
+        with st.expander("🧑‍⚖️ Judge", expanded=False):
+            # Parse and format judge_text with custom formatting
+            lines = str(judge_text).split("\n")
+            current_subagent = None
+            subagent_sections = []
+            header_lines = []
+            
+            for line in lines:
+                if line.startswith("**Score**:") or line.startswith("**Assessment**:"):
+                    header_lines.append(line)
+                elif line.startswith("- ") and line.endswith(":"):
+                    if current_subagent:
+                        subagent_sections.append(current_subagent)
+                    current_subagent = {
+                        "name": line[2:-1],  # Remove "- " and ":"
+                        "lines": []
+                    }
+                elif current_subagent and line.strip():
+                    current_subagent["lines"].append(line)
+            
+            # Add the last subagent
+            if current_subagent:
+                subagent_sections.append(current_subagent)
+            
+            # Render header (Score and Assessment)
+            for line in header_lines:
+                st.markdown(line)
+            
+            # Render subagent sections with bold names and hr separators
+            for i, section in enumerate(subagent_sections):
+                if i > 0:
+                    st.markdown("---")  # Horizontal rule separator
+                
+                st.markdown(f"**{section['name']}**")
+                for line in section["lines"]:
+                    st.markdown(line)
 
     def _handle_user_input(self) -> None:
         """Handle new user input and generate assistant response."""
@@ -180,12 +227,17 @@ class ChatPage:
                     if agent_response.citations:
                         self._render_citations(agent_response.citations)
 
+                    # Display judge block if available
+                    if getattr(agent_response, "judge_response", None):
+                        self._render_judge(agent_response.judge_response)
+
                     # Add assistant message to history
                     SessionManager.add_message(
                         "assistant",
                         agent_response.response_str,
                         citations=agent_response.citations,
                         route=getattr(agent_response, "route", None),
+                        judge_response=getattr(agent_response, "judge_response", ""),
                     )
 
                 except Exception as e:
