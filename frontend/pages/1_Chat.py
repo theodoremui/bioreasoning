@@ -22,6 +22,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from components.model_selector import ModelSelector
 from components.session_manager import SessionManager
+from components.session_manager import OrchestratorType
 from bioagents.agents.common import AgentResponse
 from bioagents.utils.async_utils import run_async
 
@@ -63,15 +64,13 @@ class ChatPage:
             st.markdown("## Chat Settings")
 
             # Orchestrator selector
-            st.markdown("### Orchestrator")
             current = SessionManager.get_orchestrator()
-            options = ["halo", "router"]
-            index = 1 if current == "router" else 0
-            choice = st.radio(label="", options=options, index=index)
-            if choice != current:
+            options = [OrchestratorType.HALO.value, OrchestratorType.ROUTER.value]
+            index = 1 if current is OrchestratorType.ROUTER else 0
+            choice = st.radio(label="Orchestrator", options=options, index=index)
+            if choice != current.value:
                 SessionManager.set_orchestrator(choice)
-                SessionManager.clear_messages()
-                st.rerun()
+                # Note: Chat history is preserved when switching orchestrators
 
             # Model selection
             self.model_selector.render()
