@@ -1,8 +1,8 @@
-# Multi-Agent Orchestration in BioAgents: A Comprehensive Tutorial with Latest Research
+# Multi-Agent Orchestration in BioAgents
 
 ## Table of Contents
 1. [Introduction](#introduction)
-2. [Latest Research in Multi-Agent Orchestration](#latest-research-in-multi-agent-orchestration)
+2. [Multi-Agent Orchestration: Key Paradigms](#multi-agent-orchestration-key-paradigms)
 3. [Current Router Pattern Implementation](#current-router-pattern-implementation)
 4. [Agent Types and Capabilities](#agent-types-and-capabilities)
 5. [Advanced Orchestration Patterns](#advanced-orchestration-patterns)
@@ -18,21 +18,23 @@
 
 The BioAgents system demonstrates a sophisticated multi-agent orchestration architecture designed for biomedical query processing. This tutorial provides a comprehensive guide to understanding and extending the current implementation, incorporating the latest research findings from 2024-2025 in multi-agent systems, orchestration patterns, and evaluation methodologies.
 
-Recent advances in multi-agent systems have introduced revolutionary concepts such as **agentic AI** [16], **hierarchical orchestration frameworks** [17], and **adaptive retrieval-augmented generation** [18]. These developments are transforming how we design, implement, and evaluate multi-agent systems across various domains, particularly in specialized fields like biomedicine.
+The BioAgents system includes a fully functional `BioHALOAgent` implementation that demonstrates the HALO framework principles in practice. This concrete implementation provides a working example of hierarchical orchestration with LLM-based planning, parallel execution, and intelligent response synthesis.
+
+Recent advances in multi-agent systems have introduced revolutionary concepts such as **hierarchical orchestration frameworks** [17], and **adaptive retrieval-augmented generation** [18]. These developments are transforming how we design, implement, and evaluate multi-agent systems across various domains, particularly in specialized fields like biomedicine.
 
 ```mermaid
 graph TB
     subgraph "Multi-Agent Orchestration Evolution"
 
         A[Traditional Single-Agent Systems] --> B[Router-Based Multi-Agent]
-        B --> C[Hierarchical Orchestration]
+        B --> C[Hierarchical Orchestration ✅]
         C --> D[Agentic AI Systems]
         D --> E[Adaptive Multi-Agent Networks]
     
     end
     
     subgraph "Key Innovations 2024-2025"
-        F[HALO Framework]
+        F[HALO Framework ✅]
         G[MetaOrch Neural Selection]
         H[MAO-ARAG Adaptive RAG]
         I[Model Context Protocol]
@@ -123,25 +125,122 @@ We provide a concrete HALO-style orchestrator named `BioHALOAgent` that compleme
 - Implementation: `bioagents/agents/bio_halo.py`
 - Architecture and design notes: see [BioHALOAgent architecture](bio_halo.md)
 
-Key properties:
-- Plans capability tags (graph, rag, biomcp, web, llama_mcp, chitchat)
-- Maps to sub-agents and executes any subset per query
-- Produces a concise final response with `[HALO]` prefix
-- Populates `judge_response` with a lightweight critique across sub-agent outputs
+**Key Features:**
+- **Capability Planning**: Uses `CapabilityPlanner` class with LLM-based planning (`LLM.GPT_4_1_MINI`) to determine required capabilities
+- **Dynamic Role Selection**: Maps capability tags (graph, rag, biomcp, web, llama_mcp, chitchat) to concrete sub-agents
+- **Parallel Execution**: Runs selected agents concurrently using `asyncio.gather()`
+- **Response Judging**: Lightweight heuristic scoring based on citations, response length, and domain alignment
+- **Intelligent Synthesis**: Merges responses with inline citation markers `[1,2]` and de-duplicates sources
+- **Lazy Import Handling**: Gracefully handles optional dependencies like `LlamaRAGAgent`
 
-Example usage:
+**Implementation Details:**
+```python
+class BioHALOAgent(BaseAgent):
+    """HALO-style hierarchical orchestrator for multi-agent LLM systems."""
+    
+    def __init__(self, name: str = "BioHALO", model_name: str = LLM.GPT_4_1_MINI):
+        # Sub-agents created in start(); kept as attributes for reuse
+        self._graph_agent: GraphAgent | None = None
+        self._rag_agent: 'LlamaRAGAgent' | None = None
+        self._biomcp_agent: BioMCPAgent | None = None
+        self._web_agent: WebReasoningAgent | None = None
+        self._chat_agent: ChitChatAgent | None = None
+        self._llamamcp_agent: LlamaMCPAgent | None = None
+```
 
+**HALO Tier Flow:**
+1. **Planning**: `_plan_with_llm()` → `CapabilityPlanner.plan()` → JSON schema validation
+2. **Role Selection**: `_select_roles()` → maps capabilities to available sub-agents
+3. **Execution**: `_execute_roles()` → parallel execution with error handling
+4. **Judging**: `_judge()` → lightweight scoring and critique
+5. **Synthesis**: `_synthesize()` → merge responses with inline citations
+
+**Capability Planning Schema:**
+```python
+class _CapabilityPlan(BaseModel):
+    capabilities: List[
+        Literal["graph", "rag", "biomcp", "web", "llama_mcp", "chitchat"]
+    ]
+```
+
+**Example Usage:**
 ```python
 from bioagents.agents.bio_halo import BioHALOAgent
 
 async def run():
     async with BioHALOAgent(name="BioHALO") as agent:
         resp = await agent.achat("How do HER2 and HR status interact under NCCN?")
-        print(resp.response_str)        # Final synthesized answer
+        print(resp.response_str)        # Final synthesized answer with [HALO] prefix
         print(resp.judge_response)      # HALO critique summary
-        for src in resp.citations:      # Merged citations
+        for src in resp.citations:      # Merged, de-duplicated citations
             print(src.url)
 ```
+
+**Response Format:**
+- Primary response prefixed with `[HALO]`
+- Inline citation markers like `...recommended therapy [1,3]`
+- Merged citations list with global indexing
+- Judge summary in `AgentResponse.judge_response`
+
+**CapabilityPlanner Implementation:**
+The `CapabilityPlanner` class provides structured LLM-based capability planning with robust fallback mechanisms:
+
+```python
+class CapabilityPlanner:
+    """Plan capabilities from an LLM JSON object output."""
+    
+    CAPABILITY_ENUM = ["graph", "rag", "biomcp", "web", "llama_mcp", "chitchat"]
+    
+    async def plan(self, query: str, available_caps: List[str]) -> List[str]:
+        """Return ["chitchat"] when clearly small-talk, else 2 or more allowed capabilities."""
+        # LLM-based planning with JSON schema validation
+        # Fallback to ["chitchat"] on parsing failures or invalid outputs
+```
+
+**Planning Prompt Strategy:**
+- Strong preference for 2+ complementary capabilities
+- Domain-specific guidance (biomedical → biomcp + rag/web)
+- Structured JSON output with validation
+- Graceful fallback to chitchat on errors
+
+**Response Synthesis and Judging:**
+The synthesis process intelligently combines multiple agent responses:
+
+```python
+def _synthesize(self, outputs: List[Tuple[str, AgentResponse]], judge_text: str) -> AgentResponse:
+    """Merge multiple AgentResponse objects into a single response."""
+    # Prioritization: graph > rag > biomcp > llama_mcp > web > chitchat
+    # Citation merging with de-duplication by URL
+    # Global citation indexing (1..N) across unique sources
+    # Inline citation markers based on contributing agents
+```
+
+**Judging Mechanism:**
+Lightweight heuristic scoring considers:
+- Citation count (up to 3 points)
+- Response length (>120 chars = +1 point)
+- Domain alignment bonuses (graph for relationships, RAG for documents)
+- Results in `judge_response` field for transparency
+
+**Error Handling and Resilience:**
+- **Sub-agent Failures**: Individual agent errors are caught and replaced with availability messages
+- **Timeout Protection**: Uses `asyncio.gather()` with `return_exceptions=True`
+- **Graceful Degradation**: Continues processing even if some agents fail
+- **Lazy Initialization**: Sub-agents created only when needed in `start()`
+
+**Testing and Override Capabilities:**
+```python
+# Override planner for experiments
+agent = BioHALOAgent(name="BioHALO")
+agent._plan = lambda q: ["graph", "rag"]
+resp = await agent.achat("HER2 and HR status interactions?")
+```
+
+**Performance Characteristics:**
+- Parallel execution of selected agents
+- Minimal overhead from planning and synthesis
+- Efficient citation merging and de-duplication
+- Async context manager support for resource management
 
 Router vs HALO (complementary roles):
 
@@ -864,21 +963,48 @@ class GenoTEXBenchmark:
 
 ## Implementation Examples
 
-### Example 1: HALO-Inspired Medical Query Processing
+### Example 1: BioHALOAgent for Medical Query Processing
+
+The implemented `BioHALOAgent` demonstrates HALO principles in practice:
 
 ```python
-class MedicalHALOOrchestrator(BaseAgent):
-    """HALO-inspired orchestrator for complex medical queries."""
+from bioagents.agents.bio_halo import BioHALOAgent
+
+async def medical_query_example():
+    """Example of using BioHALOAgent for complex medical queries."""
     
-    def __init__(self, name: str):
-        super().__init__(name)
-        self.high_level_planner = MedicalPlanningAgent()
-        self.role_designers = {
-            'guideline_analysis': GuidelineRoleDesigner(),
-            'research_synthesis': ResearchRoleDesigner(),
-            'risk_assessment': RiskAssessmentRoleDesigner(),
-            'treatment_planning': TreatmentPlanningRoleDesigner()
-        }
+    async with BioHALOAgent(name="MedicalHALO") as agent:
+        # Complex medical query that benefits from multiple specialists
+        query = "What is the best way to treat an elderly patient with HER2 breast cancer?"
+        
+        # BioHALOAgent automatically:
+        # 1. Plans: Determines capabilities needed (e.g., ["biomcp", "rag", "graph"])
+        # 2. Selects: Maps to available agents (BioMCPAgent, LlamaRAGAgent, GraphAgent)
+        # 3. Executes: Runs selected agents in parallel
+        # 4. Judges: Scores responses based on citations, length, domain alignment
+        # 5. Synthesizes: Combines into single response with inline citations
+        
+        response = await agent.achat(query)
+        
+        print(f"Response: {response.response_str}")
+        print(f"Judge Summary: {response.judge_response}")
+        print(f"Citations: {len(response.citations)}")
+        
+        # Example output:
+        # Response: [HALO] NCCN recommends trastuzumab-based regimens for HER2+ disease [1,3]. 
+        #          Additional insights include pertuzumab in neoadjuvant settings [2].
+        # Judge Summary: HALO Judge Summary:
+        #               - biomcp: score=4 citations=2
+        #               - rag: score=3 citations=1  
+        #               - graph: score=2 citations=1
+```
+
+**Key Benefits of BioHALOAgent Implementation:**
+- **Automatic Capability Planning**: No manual agent selection needed
+- **Parallel Processing**: Multiple specialists work simultaneously
+- **Intelligent Synthesis**: Combines complementary insights from different sources
+- **Citation Management**: Merges and de-duplicates sources with inline markers
+- **Transparent Evaluation**: Judge summary shows how each agent performed
     
     async def achat(self, query_str: str) -> AgentResponse:
         """Process complex medical query using HALO pattern."""
@@ -1679,7 +1805,15 @@ Key insights from recent research include:
 
 5. **Comprehensive Evaluation**: New benchmarks like GenoTEX and specialized evaluation frameworks enable rigorous assessment of multi-agent system performance [22, 24].
 
-The BioAgents system is well-positioned to incorporate these advances, with its modular architecture and specialized agent design providing a solid foundation for implementing hierarchical orchestration, neural selection mechanisms, and adaptive resource management.
+The BioAgents system has successfully incorporated these advances, with its modular architecture and specialized agent design providing a solid foundation for implementing hierarchical orchestration, neural selection mechanisms, and adaptive resource management. The concrete implementation of `BioHALOAgent` demonstrates the practical application of HALO principles while maintaining simplicity and robustness.
+
+**Current Implementation Status:**
+- ✅ **BioHALOAgent**: Fully implemented HALO-style orchestrator with LLM-based planning
+- ✅ **CapabilityPlanner**: Structured capability planning with robust fallback mechanisms
+- ✅ **Parallel Execution**: Concurrent sub-agent processing with error handling
+- ✅ **Intelligent Synthesis**: Citation merging, de-duplication, and inline markers
+- ✅ **Transparent Evaluation**: Judge summaries and performance metrics
+- ✅ **Testing Framework**: Comprehensive test coverage with override capabilities
 
 **Future directions** point toward agentic AI systems with autonomous learning capabilities, federated multi-agent networks for distributed knowledge sharing, and bio-inspired architectures for efficient coordination. These emerging trends will likely shape the next generation of multi-agent systems, enabling more sophisticated, adaptive, and efficient biomedical query processing.
 

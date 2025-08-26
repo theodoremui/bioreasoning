@@ -1,6 +1,13 @@
 """
 NCCN Breast Cancer Guidelines - Knowledge Graph Processing Script
 
+This script is used to process the NCCN Breast Cancer Guidelines into a knowledge graph.
+
+The script uses the LlamaIndex library to process the PDF document and build a knowledge graph.
+The knowledge graph is then used to answer questions about the NCCN Breast Cancer Guidelines.
+
+The script is also used to build the knowledge graph for the BioAgents application.
+
 Author: Theodore Mui
 Date: 2025-08-24
 """
