@@ -11,12 +11,20 @@ Date: 2025-04-26
 import streamlit as st
 import sys
 import os
-from typing import Any, Optional
+from enum import Enum
+from typing import Any, Optional, Union
 
 # Add project root to Python path for bioagents import
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 from bioagents.models.llms import LLM
-from bioagents.agents.bio_concierge import BioConciergeAgent
+from bioagents.agents.base_agent import BaseAgent
+from bioagents.agents.bio_router import BioRouterAgent
+from bioagents.agents.bio_halo import BioHALOAgent
+
+
+class OrchestratorType(Enum):
+    HALO = "halo"
+    ROUTER = "router"
 
 
 class SessionManager:
@@ -39,9 +47,15 @@ class SessionManager:
         if "llm_client" not in st.session_state:
             st.session_state.llm_client = LLM(model_name=LLM.GPT_4_1_NANO)
 
-        # Initialize BioConcierge agent
+        # Initialize orchestrator selection and agent
+        if "orchestrator" not in st.session_state:
+            st.session_state.orchestrator = OrchestratorType.HALO
+
         if "reasoner" not in st.session_state:
-            st.session_state.reasoner = BioConciergeAgent(name="BioConcierge")
+            if st.session_state.orchestrator is OrchestratorType.ROUTER:
+                st.session_state.reasoner = BioRouterAgent(name="BioRouter")
+            else:
+                st.session_state.reasoner = BioHALOAgent(name="BioHALO")
 
         # Initialize chat messages
         if "messages" not in st.session_state:
@@ -67,19 +81,52 @@ class SessionManager:
         return st.session_state.llm_client
 
     @staticmethod
-    def get_reasoner() -> BioConciergeAgent:
+    def get_reasoner() -> BaseAgent:
         """
-        Get the BioConcierge agent from session state.
+        Get the router-based reasoning agent from session state.
 
         Returns:
-            BioConciergeAgent: The initialized reasoning agent
-
+            BaseAgent: The initialized reasoning agent
+        
         Raises:
             KeyError: If session is not properly initialized
         """
         if "reasoner" not in st.session_state:
             SessionManager.initialize_session()
         return st.session_state.reasoner
+
+    @staticmethod
+    def get_orchestrator() -> OrchestratorType:
+        """Get the currently selected orchestrator as an Enum value."""
+        if "orchestrator" not in st.session_state:
+            SessionManager.initialize_session()
+        return st.session_state.orchestrator
+
+    @staticmethod
+    def set_orchestrator(orchestrator: Union[str, OrchestratorType]) -> None:
+        """Set orchestrator and (re)create the corresponding agent.
+
+        Args:
+            orchestrator: OrchestratorType or its string value ("router"|"halo").
+        """
+        if isinstance(orchestrator, str):
+            key = orchestrator.strip().lower()
+            if key == OrchestratorType.ROUTER.value:
+                value = OrchestratorType.ROUTER
+            elif key == OrchestratorType.HALO.value:
+                value = OrchestratorType.HALO
+            else:
+                return
+        elif isinstance(orchestrator, OrchestratorType):
+            value = orchestrator
+        else:
+            return
+
+        st.session_state.orchestrator = value
+        if value is OrchestratorType.ROUTER:
+            st.session_state.reasoner = BioRouterAgent(name="BioRouter")
+        else:
+            st.session_state.reasoner = BioHALOAgent(name="BioHALO")
 
     @staticmethod
     def get_messages() -> list:

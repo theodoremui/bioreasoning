@@ -45,6 +45,28 @@ def clean_text(text_to_clean: str) -> str:
     """
     # Remove Markdown heading markers at line starts (e.g., '#', '##', ...)
     cleaned = re.sub(r"(?m)^\s*#{1,6}\s*", "", text_to_clean)
+
+    # Normalize Markdown tables into comma-separated cells per line, end row with period.
+    # Strategy:
+    # - Remove header separators lines like |---|---| or ---|---
+    # - For lines that contain '|' treat as table rows: split on '|', trim cells, join with ', '
+    # - Remove leading/trailing pipes
+    lines = cleaned.splitlines()
+    normalized_lines: List[str] = []
+    for line in lines:
+        stripped = line.strip()
+        # Skip markdown table separator rows (e.g., |---|---| or --- | ---)
+        if re.fullmatch(r"\|?\s*:?[-]{3,}[:]?\s*(\|\s*:?[-]{3,}[:]?\s*)*\|?", stripped):
+            continue
+        if '|' in stripped:
+            # Table row: split and join with commas
+            parts = [p.strip() for p in stripped.strip('|').split('|') if p.strip()]
+            if parts:
+                normalized_lines.append(', '.join(parts) + '.')
+            continue
+        normalized_lines.append(stripped)
+
+    cleaned = " ".join([ln for ln in normalized_lines if ln])
     # Collapse whitespace/newlines into single spaces
     return " ".join(cleaned.split())
 

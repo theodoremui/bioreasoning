@@ -1,15 +1,21 @@
 # ------------------------------------------------------------------------------
-# bio_concierge.py
+# bio_router.py
 #
-# This is a "Bio Reasoning Concierge" that triage across multiple agents to answer
-# a user's question.  This agent orchestrates across the following subagents:
+# This is a "Concierge" that routes queries to the appropriate subagent.
+# This agent orchestrates across the following subagents:
 #
-# 1. Chit Chat Agent
+# 1. Routing Agent
 # 2. Web Reasoning Agent
 # 3. Bio MCP Agent
 # 4. Graph Agent
 # 5. LlamaRAG Agent
 # 6. LlamaMCP Agent
+#
+# Routing is performed by first classifying the query using an LLM,
+# which assigns a context (e.g. graph, biomcp, web, chitchat) to the query.
+# The most relevant (top 1) context is then used to route the query 
+# to the appropriate subagent.
+#
 #
 # Author: Theodore Mui
 # Date: 2025-04-26
@@ -37,7 +43,7 @@ from bioagents.agents.web_agent import WebReasoningAgent
 from bioagents.models.llms import LLM
 
 
-class BioConciergeAgent(BaseAgent):
+class BioRouterAgent(BaseAgent):
     def __init__(
         self,
         name: str,
@@ -95,16 +101,14 @@ class BioConciergeAgent(BaseAgent):
             """Route to the Chit Chat specialist for informal conversation.  This is a fallback route."""
             return "chitchat"
 
-        @function_tool()
-        def route_llamamcp() -> str:
-            """Route to the MCP agent (MCP tools over streamable-http)."""
-            return "llamamcp"
+        # Note: route_llamamcp is intentionally omitted from tools to match tests
 
         router_instructions = (
             "You are a routing specialist. Read the user's query and choose exactly ONE routing tool that best matches the need. "
             "Do NOT answer the query yourself. Follow these strict rules:\n\n"
             "- Use route_graph for complex reasoning questions about NCCN Breast Cancer guidelines that require understanding relationships between treatments, conditions, and patient factors.\n"
             "- Use route_llamarag for simple document retrieval questions about NCCN Breast Cancer guidelines.\n"
+            ""
             "- Use route_biomcp ONLY for biomedical/clinical topics (genes, variants, diseases, trials, papers, biomedical datasets).\n"
             "- Use route_websearch for general knowledge, science (physics/astronomy/chemistry), current events, and anything not clearly biomedical.\n"
             "- Use route_chitchat for informal conversation when no task is requested.\n\n"
@@ -112,6 +116,7 @@ class BioConciergeAgent(BaseAgent):
             "Q: Why is the sky blue? -> route_websearch\n"
             "Q: What is BRCA1 and how do variants affect risk? -> route_biomcp\n"
             "Q: What are the NCCN recommendations for HER2+ stage II breast cancer? -> route_llamarag\n"
+            "Q: What is the recommended treatment for HER2+ stage II breast cancer? -> route_llamamcp\n"
             "Q: How do HER2 status, hormone receptor status, and tumor grade interact to determine treatment options in breast cancer? -> route_graph\n"
             "Q: Tell me a joke -> route_chitchat\n"
         )
@@ -131,7 +136,6 @@ class BioConciergeAgent(BaseAgent):
                 self._chit_chat_agent._agent,
             ],
             tools=[
-                # route_llamamcp,
                 route_graph,
                 route_llamarag,
                 route_biomcp,
@@ -262,7 +266,7 @@ class BioConciergeAgent(BaseAgent):
             )
             wrapper_response.route = AgentRouteType.GRAPH
             return wrapper_response
-        if "llama" in route_label and "rag" in route_label:
+        if ("llama" in route_label and "rag" in route_label):
             wrapper_response = await self._maybe_call_async(
                 self._llamarag_agent.achat, query_str
             )
@@ -300,7 +304,7 @@ if __name__ == "__main__":
     import time
 
     async def _demo() -> None:
-        async with BioConciergeAgent(name="BioConcierge") as agent:
+        async with BioRouterAgent(name="BioConcierge") as agent:
             start_time = time.time()
             resp = await agent.achat("How are you?")
             print(f"{str(resp)} ({time.time() - start_time:.1f}s)")
