@@ -266,7 +266,7 @@ class BioRouterAgent(BaseAgent):
             )
             wrapper_response.route = AgentRouteType.GRAPH
             return wrapper_response
-        if "llama" in route_label and "rag" in route_label:
+        if ("llama" in route_label and "rag" in route_label):
             wrapper_response = await self._maybe_call_async(
                 self._llamarag_agent.achat, query_str
             )

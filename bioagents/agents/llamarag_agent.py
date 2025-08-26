@@ -78,10 +78,10 @@ class LlamaRAGAgent(BaseAgent):
 
     _index: Optional[LlamaCloudIndex] = None
     _query_engine: Optional[Any] = None
-    _reranker: Optional["CohereRerank"] = None
+    _reranker: Optional[CohereRerank] = None
 
     @classproperty
-    def reranker(cls) -> Optional["CohereRerank"]:
+    def reranker(cls) -> Optional[CohereRerank]:
         if cls._reranker is None and CohereRerank is not None:
             try:
                 if COHERE_API_KEY:

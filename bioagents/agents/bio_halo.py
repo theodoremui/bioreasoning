@@ -31,12 +31,13 @@ from bioagents.agents.biomcp_agent import BioMCPAgent
 from bioagents.agents.web_agent import WebReasoningAgent
 from bioagents.agents.chitchat_agent import ChitChatAgent
 from bioagents.agents.llamamcp_agent import LlamaMCPAgent
-from bioagents.agents.llamarag_agent import LlamaRAGAgent
 from bioagents.models.llms import LLM
+from bioagents.agents.llamarag_agent import LlamaRAGAgent
 
 
 PLANNING_PROMPT = """
 You are a planner deciding which specialists to invoke for a user query.
+
 ## Available capabilities
 
 capabilities: graph, rag, biomcp, web, llama_mcp, chitchat.
@@ -56,12 +57,69 @@ For relationship/network questions include graph.
 Query: {query}
 
 ## Output instructions
-Return ONLY JSON with a key 'capabilities' whose value is an ordered list 
-of any of these strings.  No prose. No other text.
+Return ONLY JSON with key 'capabilities' under one of two conditions:
+- Exactly ["chitchat"] if and only if the user query is clearly small-talk.
+- Otherwise an array of 2 or more items, each in the array:
+  ["graph","rag","biomcp","web","llama_mcp","chitchat"].
+No prose. No other text.
 
 ## Example Output
-{"capabilities": ["graph", "rag"]}
+{{"capabilities": ["graph", "rag"]}}
 """
+
+
+class CapabilityPlanner:
+    """Plan capabilities from an LLM JSON object output.
+
+    Simplicity-first: parse JSON, validate allowed values and lengths, otherwise fallback.
+    """
+
+    CAPABILITY_ENUM = ["graph", "rag", "biomcp", "web", "llama_mcp", "chitchat"]
+
+    def __init__(self, model_name: str = LLM.GPT_4_1_MINI, timeout: int = 10) -> None:
+        self._llm = LLM(model_name=model_name, timeout=timeout)
+        
+
+    async def plan(self, query: str, available_caps: List[str]) -> List[str]:
+        """Return ["chitchat"] when clearly small-talk, else 2 or more allowed capabilities.
+
+        If JSON is invalid or no valid capabilities remain after filtering, return ["chitchat"].
+        
+        Args:
+            query: The user query.
+            available_caps: A list of capabilities (e.g. graph, rag, biomcp, web, chitchat) 
+                          to select from.
+            
+        Returns:
+            A list of capabilities.
+        """
+        prompt = PLANNING_PROMPT.format(query=query)
+        try:
+            content = await self._llm.achat_completion(
+                prompt,
+                temperature=0,
+                response_format={"type": "json_object"},
+            )
+            logger.debug(f"CapabilityPlanner raw content (truncated): {str(content)[:300]}")
+            data = json.loads((content or "{}").strip())
+            raw_caps = data.get("capabilities", []) or []
+            # Normalize: lowercase, trim, unique order-preserving
+            seen: set[str] = set()
+            caps: List[str] = []
+            for item in raw_caps:
+                s = str(item).strip().lower()
+                if s in CapabilityPlanner.CAPABILITY_ENUM and s not in seen:
+                    caps.append(s)
+                    seen.add(s)
+
+            if caps == ["chitchat"]:
+                return ["chitchat"]
+            if len(caps) >= 2:
+                return caps
+            return ["chitchat"]
+        except Exception as e:
+            logger.warning(f"CapabilityPlanner parsing failed: {e}")
+            return ["chitchat"]
 
 class BioHALOAgent(BaseAgent):
     """
@@ -100,7 +158,7 @@ class BioHALOAgent(BaseAgent):
 
         # Sub-agents created in start(); kept as attributes for reuse
         self._graph_agent: GraphAgent | None = None
-        self._rag_agent: LlamaRAGAgent | None = None
+        self._rag_agent: 'LlamaRAGAgent' | None = None
         self._biomcp_agent: BioMCPAgent | None = None
         self._web_agent: WebReasoningAgent | None = None
         self._chat_agent: ChitChatAgent | None = None
@@ -112,13 +170,8 @@ class BioHALOAgent(BaseAgent):
         # Instantiate sub-agents only if not pre-injected (to allow tests/mocks)
         if self._graph_agent is None:
             self._graph_agent = GraphAgent(name="Graph Agent")
-        # Lazy import LlamaRAGAgent to avoid optional dependency import errors at module import time
         if self._rag_agent is None:
-            try:
-                from bioagents.agents.llamarag_agent import LlamaRAGAgent  # type: ignore
-                self._rag_agent = LlamaRAGAgent(name="LlamaCloud RAG Agent")
-            except Exception:
-                self._rag_agent = None
+            self._rag_agent = LlamaRAGAgent(name="LlamaCloud RAG Agent")
         if self._biomcp_agent is None:
             self._biomcp_agent = BioMCPAgent(name="Bio MCP Agent")
         if self._web_agent is None:
@@ -149,44 +202,15 @@ class BioHALOAgent(BaseAgent):
         ]
 
     async def _plan_with_llm(self, query: str) -> List[str]:
-        """LLM-backed planner returning capability tags -- which are the names 
-        of the sub-agents to invoke.
+        """Delegates to CapabilityPlanner with schema-constrained outputs and fallback."""
+        # Plan against the full capability set; role selection handles availability
+        available = list(CapabilityPlanner.CAPABILITY_ENUM)
 
-        Uses a small model to classify which specialists are helpful,
-        returning strictly validated capabilities via Pydantic.
-        
-        Args:
-            query: The user query.
-            
-        Returns:
-            A list of capability tags.
-        """
-        try:
-            llm = LLM(model_name=LLM.GPT_4_1_MINI, timeout=10)
-            prompt = PLANNING_PROMPT.format(query=query)
-            # Prefer JSON responses; rely on strict schema validation
-            content = await llm.achat_completion(
-                prompt,
-                temperature=0,
-                response_format={"type": "json_object"},
-            )
-            data = json.loads((content or "{}").strip())
-            plan = BioHALOAgent._CapabilityPlan.model_validate(data)
-            filtered = plan.capabilities
-            # Deduplicate while preserving order
-            seen = set()
-            ordered: List[str] = []
-            for c in filtered:
-                if c not in seen:
-                    ordered.append(c)
-                    seen.add(c)
-            return ordered or ["chitchat"]
-        except (ValidationError, json.JSONDecodeError, Exception):
-            # Minimal safe fallback to ensure progress; avoid keyword heuristics
-            return ["chitchat"]
+        planner = CapabilityPlanner(model_name=LLM.GPT_4_1_MINI, timeout=10)
+        return await planner.plan(query, available)
 
     async def _plan_async(self, query: str) -> List[str]:
-        """Async planner using LLM structured output; minimal fallback to chitchat."""
+        """Async planner using schema-based CapabilityPlanner; minimal deterministic fallback."""
         caps = await self._plan_with_llm(query)
         return caps if caps else ["chitchat"]
 
