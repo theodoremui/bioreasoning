@@ -189,12 +189,7 @@ class HALOJudgmentSummary(BaseModel):
 class CapabilityPlanner:
     """Plan capabilities from an LLM JSON object output.
 
-    Simplicity-first: parse JSON, validate allowed values and lengths, otherw[HALO] Consider adjuvant endocrine therapy or adjuvant chemotherapy with trastuzumab for elderly patients with HER2-positive breast cancer. The treatment for elderly patients with HER2-positive breast cancer often involves targeted therapies such as trastuzumab, pertuzumab, or newer agents like pyrotinib, combined with chemotherapy or endocrine therapy depending on the specific case and patient health status. [1,2,3,4] For example, trastuzumab monotherapy has shown effectiveness in some elderly patients, and de-escalation strategies like single-dose trastuzumab or targeted therapy combined with endocrine therapy are being explored to reduce treatment burden. [1,2,3,4]
-
-Overall Score: 0.81 Assessment: Best performing agent: biomcp (score: 0.870); Lowest performing agent: llama_rag (score: 0.750); High-quality responses from: biomcp
-
-llama_rag: 0.75 - The response correctly identifies key treatment options for elderly patients with HER2-positive breast cancer, including adjuvant endocrine therapy and trastuzumab-based chemotherapy. (with 0 sources)
-biomcp: 0.87 - The response provides a detailed and nuanced overview of treatment options for elderly patients with HER2-positive breast cancer, including targeted therapies and considerations for individual patient factors. (with 4 sources)ise fallback.
+    Simplicity-first: parse JSON, validate allowed values and lengths, otherwise fallback.
     """
 
     CAPABILITY_ENUM = ["graph", "llama_rag", "biomcp", "web", "llama_mcp", "chitchat"]
@@ -418,8 +413,8 @@ class BioHALOAgent(BaseAgent):
             "You are a hierarchical orchestrator (HALO). You plan, select, and coordinate"
             " multiple specialists to answer complex biomedical and general questions.\n\n"
             "## Response Instructions:\n"
-            "- Prepend the final response with '[HALO]'\n"
-            "- Be concise and structured; provide citations where available\n"
+            "- Prepend the final response with '[HALO]'"
+            "- Be concise and structured; provide citations where available"
         )
         super().__init__(name, model_name, instructions)
 
@@ -684,22 +679,52 @@ class BioHALOAgent(BaseAgent):
             )
 
         # Citation management
-        used_url_to_index: Dict[str, int] = {}
+        # Build a union of citations from ALL subagents and assign stable indices
+        citation_index: Dict[str, int] = {}
         used_citations: List = []
         used_per_capability: Dict[str, set] = {}
         next_index = 1
+
+        def _citation_identity(citation) -> str:
+            """Return a robust identity key for a citation.
+
+            Prefers URL; falls back to file name + page labels + title. This ensures
+            citations without URLs (e.g., PDF page refs) still get indexed and
+            can be referenced by inline markers.
+            """
+            try:
+                url = str(getattr(citation, "url", "") or "").strip()
+                file_name = str(getattr(citation, "file_name", "") or "").strip()
+                start_page = str(getattr(citation, "start_page_label", "") or "").strip()
+                end_page = str(getattr(citation, "end_page_label", "") or "").strip()
+                page = str(getattr(citation, "page", "") or "").strip()
+                title = str(getattr(citation, "title", "") or "").strip()
+                if url:
+                    return f"url={url}"
+                page_part = f"{start_page}-{end_page}" if start_page or end_page else (page or "")
+                return f"file={file_name}|page={page_part}|title={title}"
+            except Exception:
+                return repr(citation)
+
+        # Pre-index all citations from all subagents to ensure the Sources list includes union
+        for cap, resp in outputs:
+            for c in getattr(resp, "citations", []) or []:
+                key = _citation_identity(c)
+                if key and key not in citation_index:
+                    citation_index[key] = next_index
+                    used_citations.append(c)
+                    next_index += 1
 
         def _append_citation_markers(text_segment: str, resp: AgentResponse, capability: str) -> str:
             indices: List[int] = []
             cap_set = used_per_capability.get(capability, set())
             for c in getattr(resp, "citations", []) or []:
-                url = getattr(c, "url", None)
-                if not url:
-                    continue
-                if url not in used_url_to_index:
-                    used_url_to_index[url] = next_index_nonlocal()
+                # Use robust identity; if not present yet (unexpected), register now
+                key = _citation_identity(c)
+                if key not in citation_index:
+                    citation_index[key] = next_index_nonlocal()
                     used_citations.append(c)
-                idx = used_url_to_index[url]
+                idx = citation_index[key]
                 indices.append(idx)
                 cap_set.add(idx)
             used_per_capability[capability] = cap_set
@@ -775,7 +800,7 @@ class BioHALOAgent(BaseAgent):
                 best_agent = (cap, resp)
 
         # Build structured markdown response
-        markdown_sections = ["[HALO]"]
+        markdown_sections = []
         
         # Executive Summary from best-performing agent
         if best_agent:
@@ -865,7 +890,7 @@ class BioHALOAgent(BaseAgent):
 
         final_text = "\n".join(markdown_sections)
         citations = used_citations
-        logger.info(f"HALO synthesis: {len(used_citations)} citations included in structured response, {len(outputs)} subagents processed")
+        logger.info(f"HALO synthesis: {len(used_citations)} union citations included; {len(outputs)} subagents processed")
 
         # Build structured judge_response block (no HTML) for frontend expander
         def _first_sentence(text: str) -> str:
@@ -879,19 +904,27 @@ class BioHALOAgent(BaseAgent):
         # Header lines
         judge_lines: List[str] = []
         judge_lines.append(f"**Score**: {overall_score:.2f}")
-        
-        # Add individual agent scores
+
+        # Build compact per-subagent summary: "cap 0.82 (N sources)"
+        per_agent_summaries: List[str] = []
         agent_scores = []
         for cap, resp in outputs:
             j = judgments.get(cap)
-            if j:
-                agent_scores.append(f"{cap}: {j.overall_score:.2f}")
+            if not j:
+                continue
+            num_sources = len(getattr(resp, "citations", []) or [])
+            per_agent_summaries.append(f"{cap} {j.overall_score:.2f} ({num_sources} sources)")
+            agent_scores.append(f"{cap}: {j.overall_score:.2f}")
+
         if agent_scores:
             judge_lines.append(f"Agent Scores: {', '.join(agent_scores)}")
-        
-        judge_lines.append("")  # Empty line for separation
-        judge_lines.append(f"**Assessment**:")
-        judge_lines.append(f"{synthesis_notes if synthesis_notes else 'Responses were synthesized to balance breadth and grounding across agents.'}")
+
+        # Single-line Assessment so the header renderer shows content inline
+        summary_text = synthesis_notes if synthesis_notes else "Responses were synthesized to balance breadth and grounding across agents."
+        if per_agent_summaries:
+            judge_lines.append(f"**Assessment**: {summary_text}\n_{', '.join(per_agent_summaries)}_")
+        else:
+            judge_lines.append(f"**Assessment**: {summary_text}")
 
         # Per-subagent blocks: Response, Score, Justification, Citations  
         max_snippet_len = 800  # Increased from 400 to show more complete responses

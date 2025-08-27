@@ -158,6 +158,7 @@ class GraphAgent(BaseAgent):
         # Create agent with graph query tool
         self._agent: Optional[Agent] = None
 
+
     @staticmethod
     @function_tool()
     def query_knowledge_graph(query: str) -> AgentResponse:
@@ -483,6 +484,8 @@ async def smoke_tests() -> None:
         response1 = await agent.achat("What is ICD-10?")
         print(f"Response 1: {response1.response_str[:200]}...")
         print(f"Citations: {len(response1.citations)}")
+        for index, citation in enumerate(response1.citations):
+            print(f"{index:02d}: {citation.title}: {citation.snippet}")
         
         print("==> 4. Testing breast cancer treatment query")
         response2 = await agent.achat(
@@ -490,6 +493,8 @@ async def smoke_tests() -> None:
         )
         print(f"Response 2: {response2.response_str[:200]}...")
         print(f"Citations: {len(response2.citations)}")
+        for index, citation in enumerate(response2.citations):
+            print(f"{index:02d}: {citation.title}: {citation.snippet}")
         
         print("==> 5. Testing HER2-specific query")
         response3 = await agent.achat(
@@ -497,6 +502,8 @@ async def smoke_tests() -> None:
         )
         print(f"Response 3: {response3.response_str[:200]}...")
         print(f"Citations: {len(response3.citations)}")
+        for index, citation in enumerate(response3.citations):
+            print(f"{index:02d}: {citation.title}: {citation.snippet}")
         
         print("==> 6. Testing agent properties")
         print(f"Config loaded: {agent.config is not None}")

@@ -28,6 +28,16 @@
             }
         },
         {
+            "name": "graph_agent",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "bioagents.agents.graph_agent",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "biomcp",
             "type": "debugpy",
             "request": "launch",

@@ -30,7 +30,7 @@ class ProvenanceBuilder(IProvenanceBuilder):
         - Handles missing data gracefully
     """
 
-    def __init__(self, snippet_max_length: int = 500):
+    def __init__(self, snippet_max_length: int = 1000):
         """Initialize provenance builder.
 
         Args:
@@ -142,13 +142,16 @@ class ProvenanceBuilder(IProvenanceBuilder):
         return None
 
     def _create_snippet(self, properties: Dict[str, Any]) -> str:
-        """Create contextual snippet from available text.
+        """Create contextual snippet from available text, cleaning any metadata prefixes.
+
+        This method processes existing graph relationship properties and cleans
+        any polluted source_snippet values that may contain metadata prefixes.
 
         Args:
-            properties: Properties dictionary
+            properties: Properties dictionary from graph relationships
 
         Returns:
-            Contextual snippet text
+            Clean contextual snippet text without metadata prefixes
         """
         # Try different sources for snippet text
         snippet_sources = [
@@ -164,10 +167,75 @@ class ProvenanceBuilder(IProvenanceBuilder):
                 break
 
         if raw_text:
+            # Clean any metadata prefixes that may exist in stored data
+            clean_text = self._clean_metadata_prefix(raw_text)
             return make_contextual_snippet(
-                raw_text, "", max_length=self.snippet_max_length
+                clean_text, "", max_length=self.snippet_max_length
             )
         return ""
+
+    def _clean_metadata_prefix(self, text: str) -> str:
+        """Clean metadata prefixes from text that may exist in stored graph data.
+        
+        This handles cases where the Neo4j database contains relationships with
+        polluted source_snippet properties from before our extraction fixes.
+        
+        Args:
+            text: Raw text that may contain metadata prefixes
+            
+        Returns:
+            Clean text with metadata prefixes removed
+        """
+        if not text:
+            return ""
+            
+        text = str(text).strip()
+        
+        # Pattern 1: Look for " - " that separates metadata from content
+        dash_patterns = [" - ", " – ", " — "]
+        for pattern in dash_patterns:
+            if pattern in text:
+                parts = text.split(pattern)
+                if len(parts) > 1:
+                    # Check if the part before dash looks like metadata
+                    before_dash = parts[0]
+                    metadata_indicators = [
+                        "doc_id:", "doc_title:", "file_path:", "page_number:", 
+                        "paragraph_index:", "char_start:", "char_end:"
+                    ]
+                    
+                    if any(indicator in before_dash for indicator in metadata_indicators):
+                        # Join everything after the first dash as content
+                        content = pattern.join(parts[1:]).strip()
+                        if content:
+                            return content
+        
+        # Pattern 2: Look for content after metadata fields using regex
+        import re
+        metadata_pattern = r'^.*?(?:char_end:\s*\d+|paragraph_index:\s*\d+|page_number:\s*\d+)(?:\s+.*?)?\s*[-–—]\s*(.+)$'
+        match = re.match(metadata_pattern, text, re.DOTALL)
+        if match:
+            content = match.group(1).strip()
+            if content:
+                return content
+        
+        # Pattern 3: If no clear separator, but text starts with metadata indicators,
+        # try to find where the actual content begins
+        if any(text.startswith(f"{indicator} ") for indicator in ["doc_id:", "file_path:"]):
+            words = text.split()
+            for i, word in enumerate(words):
+                # Look for words that start with capital letters and don't contain colons
+                if (len(word) > 2 and 
+                    word[0].isupper() and 
+                    ":" not in word and 
+                    not word.replace("-", "").replace("_", "").isdigit()):
+                    # Found potential start of content
+                    content = " ".join(words[i:]).strip()
+                    if len(content) > 20:  # Make sure it's substantial content
+                        return content
+        
+        # If no patterns matched, return the original text
+        return text
 
     def _get_or_generate_provenance_id(
         self, properties: Dict[str, Any], prov_data: Dict[str, Any]
