@@ -35,23 +35,44 @@ from bioagents.models.llms import LLM
 from bioagents.agents.llamarag_agent import LlamaRAGAgent
 
 
-PLANNING_PROMPT = """
+PLANNING_PROMPT = """\
 You are a planner deciding which specialists to invoke for a user query.
 
 ## Available capabilities
 
-capabilities: graph, rag, biomcp, web, llama_mcp, chitchat.
+capabilities: graph, llama_rag, biomcp, web, llama_mcp, chitchat.
 
 ## Guidelines
 You should strongly prefer at least 2 or more complementary capabilities when in doubt,
 unless you are sure that the query is chitchat or exactly 1 capability is enough.
 
-The selected capabilities should involve diversified sources 
-(e.g., combine biomcp with rag or web).
+## Capability Descriptions:
+- **graph**: NCCN breast cancer guidelines knowledge graph, treatment pathways, drug interactions, biomarker relationships
+- **llama_rag**: Document retrieval from NCCN breast cancer guidelines and related medical documents
+- **biomcp**: PubMed articles, biomedical research, genetic variants, clinical studies, ICD codes
+- **web**: Current web search, latest news, recent developments, real-time information
+- **llama_mcp**: Queries about NCCN breast cancer guidelines using LlamaCloud processing
+- **chitchat**: Casual conversation, greetings, non-medical small talk
 
-For biomedical clinical queries, include biomcp plus one of rag/web.
-For document/guideline queries include rag.
-For relationship/network questions include graph.
+## Selection Guidelines:
+
+**For NCCN/breast cancer queries:** graph + llama_rag (and optionally biomcp)
+- Example: "NCCN breast cancer guidelines", "HER2-positive treatment", "treatment protocols"
+
+**For biomedical research/PubMed queries:** biomcp + graph (if cancer-related) or biomcp + llama_rag
+- Example: "latest research on gene X", "clinical studies for drug Y", "genetic variants"
+
+**For document/guideline questions:** llama_rag + graph (if NCCN-related) or just llama_rag
+- Example: "what does the PDF say about...", "guidelines for condition X"
+
+**For current events/news:** web + biomcp (if medical) or just web
+- Example: "latest COVID developments", "recent FDA approvals", "current medical news"
+
+**For relationship/interaction queries:** graph + biomcp
+- Example: "drug interactions", "biomarker relationships", "treatment combinations"
+
+**For general medical questions:** biomcp + llama_rag + graph (comprehensive coverage)
+- Example: "how to treat condition X", "what causes disease Y"
 
 ## Query
 Query: {query}
@@ -60,11 +81,11 @@ Query: {query}
 Return ONLY JSON with key 'capabilities' under one of two conditions:
 - Exactly ["chitchat"] if and only if the user query is clearly small-talk.
 - Otherwise an array of 2 or more items, each in the array:
-  ["graph","rag","biomcp","web","llama_mcp","chitchat"].
+  ["graph","llama_rag","biomcp","web","llama_mcp","chitchat"].
 No prose. No other text.
 
 ## Example Output
-{{"capabilities": ["graph", "rag"]}}
+{{"capabilities": ["graph", "llama_rag"]}}
 """
 
 JUDGE_PROMPT = """You are an impartial judge, evaluating one subagent's response to a user query.
@@ -170,13 +191,13 @@ class CapabilityPlanner:
 
     Simplicity-first: parse JSON, validate allowed values and lengths, otherw[HALO] Consider adjuvant endocrine therapy or adjuvant chemotherapy with trastuzumab for elderly patients with HER2-positive breast cancer. The treatment for elderly patients with HER2-positive breast cancer often involves targeted therapies such as trastuzumab, pertuzumab, or newer agents like pyrotinib, combined with chemotherapy or endocrine therapy depending on the specific case and patient health status. [1,2,3,4] For example, trastuzumab monotherapy has shown effectiveness in some elderly patients, and de-escalation strategies like single-dose trastuzumab or targeted therapy combined with endocrine therapy are being explored to reduce treatment burden. [1,2,3,4]
 
-Overall Score: 0.81 Assessment: Best performing agent: biomcp (score: 0.870); Lowest performing agent: rag (score: 0.750); High-quality responses from: biomcp
+Overall Score: 0.81 Assessment: Best performing agent: biomcp (score: 0.870); Lowest performing agent: llama_rag (score: 0.750); High-quality responses from: biomcp
 
-rag: 0.75 - The response correctly identifies key treatment options for elderly patients with HER2-positive breast cancer, including adjuvant endocrine therapy and trastuzumab-based chemotherapy. (with 0 sources)
+llama_rag: 0.75 - The response correctly identifies key treatment options for elderly patients with HER2-positive breast cancer, including adjuvant endocrine therapy and trastuzumab-based chemotherapy. (with 0 sources)
 biomcp: 0.87 - The response provides a detailed and nuanced overview of treatment options for elderly patients with HER2-positive breast cancer, including targeted therapies and considerations for individual patient factors. (with 4 sources)ise fallback.
     """
 
-    CAPABILITY_ENUM = ["graph", "rag", "biomcp", "web", "llama_mcp", "chitchat"]
+    CAPABILITY_ENUM = ["graph", "llama_rag", "biomcp", "web", "llama_mcp", "chitchat"]
 
     def __init__(self, model_name: str = LLM.GPT_4_1_MINI, timeout: int = 10) -> None:
         self._llm = LLM(model_name=model_name, timeout=timeout)
@@ -189,7 +210,7 @@ biomcp: 0.87 - The response provides a detailed and nuanced overview of treatmen
         
         Args:
             query: The user query.
-            available_caps: A list of capabilities (e.g. graph, rag, biomcp, web, chitchat) 
+            available_caps: A list of capabilities (e.g. graph, llama_rag, biomcp, web, chitchat) 
                           to select from.
             
         Returns:
@@ -340,7 +361,7 @@ class HALOJudge:
         # Domain alignment
         if capability == "graph" and any(k in query.lower() for k in ["interact", "relationship", "correlat"]):
             score += 0.1
-        if capability == "rag" and any(k in query.lower() for k in ["nccn", "guideline", "pdf", "document"]):
+        if capability == "llama_rag" and any(k in query.lower() for k in ["nccn", "guideline", "pdf", "document"]):
             score += 0.1
         
         # Cap at 1.0
@@ -376,7 +397,7 @@ class BioHALOAgent(BaseAgent):
     the query, returning a final synthesized response.
     
     Supports:
-    - Knowledge graph, RAG, MCP, Web, and chit-chat agents
+    - Knowledge graph, LlamaRAG, MCP, Web, and chit-chat agents
     - Dynamic subagent instantiation
     - Consequential tool-calling evaluation
 
@@ -450,7 +471,7 @@ class BioHALOAgent(BaseAgent):
     # -----------------------------
     class _CapabilityPlan(BaseModel):
         capabilities: List[
-            Literal["graph", "rag", "biomcp", "web", "llama_mcp", "chitchat"]
+            Literal["graph", "llama_rag", "biomcp", "web", "llama_mcp", "chitchat"]
         ]
 
     async def _plan_with_llm(self, query: str) -> List[str]:
@@ -485,7 +506,7 @@ class BioHALOAgent(BaseAgent):
         Select the appropriate sub-agents based on the capabilities.
         
         Args:
-            capabilities: A list of capabilities (e.g. graph, rag, biomcp, web, chitchat) 
+            capabilities: A list of capabilities (e.g. graph, llama_rag, biomcp, web, chitchat) 
                           to select from.
             
         Returns:
@@ -495,7 +516,7 @@ class BioHALOAgent(BaseAgent):
         if self._graph_agent:
             mapping["graph"] = self._graph_agent
         if self._rag_agent:
-            mapping["rag"] = self._rag_agent
+            mapping["llama_rag"] = self._rag_agent
         if self._biomcp_agent:
             mapping["biomcp"] = self._biomcp_agent
         if self._web_agent:
@@ -560,7 +581,7 @@ class BioHALOAgent(BaseAgent):
             query: The user query.
             
         Returns:
-            A tuple containing the capability (e.g. graph, rag, biomcp, web, chitchat) 
+            A tuple containing the capability (e.g. graph, llama_rag, biomcp, web, chitchat) 
             and the AgentResponse.
         """
         try:
@@ -615,47 +636,54 @@ class BioHALOAgent(BaseAgent):
         )
     
     def _generate_synthesis_notes(self, judgments: Dict[str, AgentJudgment], query: str) -> str:
-        """Generate synthesis guidance notes based on individual judgments."""
+        """Generate assessment prose about the overall response quality."""
         
         if not judgments:
-            return "No subagent responses available for synthesis."
+            return "No subagent responses were available for analysis."
         
-        # Find best and worst performing agents
-        best_agent = max(judgments.items(), key=lambda x: x[1].overall_score)
-        worst_agent = min(judgments.items(), key=lambda x: x[1].overall_score)
-        
-        notes = [
-            f"Best performing agent: {best_agent[0]} (score: {best_agent[1].overall_score:.3f})",
-            f"Lowest performing agent: {worst_agent[0]} (score: {worst_agent[1].overall_score:.3f})"
-        ]
-        
-        # Add specific guidance based on scores
+        # Calculate score distribution
+        scores = [j.overall_score for j in judgments.values()]
+        avg_score = sum(scores) / len(scores)
         high_performers = [cap for cap, j in judgments.items() if j.overall_score >= 0.8]
-        if high_performers:
-            notes.append(f"High-quality responses from: {', '.join(high_performers)}")
-        
         low_performers = [cap for cap, j in judgments.items() if j.overall_score < 0.5]
-        if low_performers:
-            notes.append(f"Consider supplementing responses from: {', '.join(low_performers)}")
         
-        return "; ".join(notes)
+        # Generate qualitative assessment based on scores
+        if avg_score >= 0.8:
+            quality_assessment = "The overall response demonstrates high quality with strong evidence grounding and comprehensive coverage."
+        elif avg_score >= 0.6:
+            quality_assessment = "The response provides solid information with good coverage of the topic, though some areas could be strengthened."
+        elif avg_score >= 0.4:
+            quality_assessment = "The response addresses the query adequately but has notable gaps in completeness or grounding."
+        else:
+            quality_assessment = "The response has significant limitations in accuracy, completeness, or evidence support."
+        
+        # Add specific observations
+        observations = []
+        if high_performers:
+            observations.append(f"Strong contributions from {', '.join(high_performers)} with excellent grounding and relevance.")
+        if low_performers:
+            observations.append(f"Areas for improvement identified in {', '.join(low_performers)} responses.")
+        
+        # Combine assessment
+        if observations:
+            return f"{quality_assessment} {' '.join(observations)}"
+        else:
+            return quality_assessment
 
     def _synthesize(self, outputs: List[Tuple[str, AgentResponse]], judgment_summary: HALOJudgmentSummary) -> AgentResponse:
-        """Merge multiple AgentResponse objects into a single response.
+        """Create a well-structured markdown response from multiple subagent outputs.
 
-        Strategy: prioritize Graph and RAG content; append supplementary points
-        from others succinctly. Merge and de-duplicate citations that are actually used
-        in the final composed answer, and add inline markers.
+        Strategy: Organize content thematically with proper markdown structure,
+        extract key insights from each agent, and present in a coherent narrative flow.
         """
-        # Prioritization
-        priority_order = {"graph": 0, "rag": 1, "biomcp": 2, "llama_mcp": 3, "web": 4, "chitchat": 5}
-        sorted_out = sorted(outputs, key=lambda t: priority_order.get(t[0], 99))
+        if not outputs:
+            return AgentResponse(
+                response_str="[HALO] No subagent responses available.",
+                citations=[],
+                route=AgentRouteType.REASONING,
+            )
 
-        def _strip_leading_tag(text: str) -> str:
-            # Remove leading tags like [Graph], [RAG], [MCP], [HALO]
-            return re.sub(r"^\s*\[[^\]]+\]\s*", "", text or "").strip()
-
-        # Inline citation machinery: assign indices lazily only for citations that appear in final text
+        # Citation management
         used_url_to_index: Dict[str, int] = {}
         used_citations: List = []
         used_per_capability: Dict[str, set] = {}
@@ -669,14 +697,12 @@ class BioHALOAgent(BaseAgent):
                 if not url:
                     continue
                 if url not in used_url_to_index:
-                    # assign new index lazily on first use
                     used_url_to_index[url] = next_index_nonlocal()
                     used_citations.append(c)
                 idx = used_url_to_index[url]
                 indices.append(idx)
                 cap_set.add(idx)
             used_per_capability[capability] = cap_set
-            # Deduplicate and sort
             indices = sorted(list(dict.fromkeys(indices)))
             if indices:
                 return f"{text_segment} [{','.join(str(i) for i in indices)}]"
@@ -688,39 +714,158 @@ class BioHALOAgent(BaseAgent):
             next_index += 1
             return current
 
-        primary_text: str = ""
+        def _strip_leading_tag(text: str) -> str:
+            return re.sub(r"^\s*\[[^\]]+\]\s*", "", text or "").strip()
 
-        # Build unified answer: start from primary, then weave in unique sentences from others with inline markers
-        if sorted_out:
-            primary_cap, primary_resp = sorted_out[0]
-            primary_text = _strip_leading_tag(primary_resp.response_str)
-            primary_text = _append_citation_markers(primary_text, primary_resp, primary_cap)
-        final_text = "[HALO] " + (primary_text if primary_text else "No primary answer available.")
+        def _extract_key_points(text: str) -> List[str]:
+            """Extract key sentences/points from text for structured presentation."""
+            if not text:
+                return []
+            
+            # Split into sentences and filter meaningful ones
+            sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+            key_points = []
+            
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if len(sentence) > 20 and not sentence.startswith("However") and not sentence.startswith("Additionally"):
+                    # Prioritize sentences with key medical terms, recommendations, or specific information
+                    if any(keyword in sentence.lower() for keyword in [
+                        "recommend", "should", "treatment", "therapy", "guideline", "study", "research",
+                        "patient", "clinical", "evidence", "effective", "consider", "important"
+                    ]):
+                        key_points.append(sentence)
+                    elif len(key_points) < 3:  # Include first few sentences if no keywords found
+                        key_points.append(sentence)
+                        
+                if len(key_points) >= 4:  # Limit to avoid overwhelming output
+                    break
+                    
+            return key_points
 
-        def _unique_sentence_addition(current: str, additional: str, capability: str, resp: AgentResponse, max_new: int = 3) -> str:
-            added = 0
-            for sent in re.split(r"(?<=[.!?])\s+", additional):
-                clean = sent.strip()
-                if not clean:
-                    continue
-                if clean not in current:
-                    # append with markers tied to this fragment
-                    fragment_with_markers = _append_citation_markers(clean, resp, capability)
-                    current += (" " if not current.endswith(" ") else "") + fragment_with_markers
-                    added += 1
-                    if added >= max_new:
+        # Organize responses by capability type
+        capability_groups = {
+            "guidelines": [],  # graph, llama_rag
+            "research": [],    # biomcp
+            "current": [],     # web
+            "analysis": [],    # llama_mcp
+            "other": []        # chitchat, etc.
+        }
+
+        for cap, resp in outputs:
+            if cap in ["graph", "llama_rag"]:
+                capability_groups["guidelines"].append((cap, resp))
+            elif cap == "biomcp":
+                capability_groups["research"].append((cap, resp))
+            elif cap == "web":
+                capability_groups["current"].append((cap, resp))
+            elif cap == "llama_mcp":
+                capability_groups["analysis"].append((cap, resp))
+            else:
+                capability_groups["other"].append((cap, resp))
+
+        # Find best performing agent for executive summary
+        judgments = getattr(judgment_summary, "individual_judgments", {})
+        best_agent = None
+        best_score = 0.0
+        for cap, resp in outputs:
+            judgment = judgments.get(cap)
+            if judgment and judgment.overall_score > best_score:
+                best_score = judgment.overall_score
+                best_agent = (cap, resp)
+
+        # Build structured markdown response
+        markdown_sections = ["[HALO]"]
+        
+        # Executive Summary from best-performing agent
+        if best_agent:
+            cap, resp = best_agent
+            summary_text = _strip_leading_tag(resp.response_str)
+            if summary_text:
+                # Take first 2-3 sentences as executive summary
+                summary_sentences = re.split(r"(?<=[.!?])\s+", summary_text.strip())
+                executive_summary = ". ".join(summary_sentences[:2]) + "."
+                executive_summary = _append_citation_markers(executive_summary, resp, cap)
+                markdown_sections.append(f"\n{executive_summary}")
+
+        # Clinical Guidelines & Protocols
+        if capability_groups["guidelines"]:
+            markdown_sections.append("\n## Clinical Guidelines & Protocols")
+            for cap, resp in capability_groups["guidelines"]:
+                content = _strip_leading_tag(resp.response_str)
+                key_points = _extract_key_points(content)
+                if key_points:
+                    source_name = "NCCN Guidelines" if cap == "graph" else "Clinical Documents"
+                    markdown_sections.append(f"\n### {source_name}")
+                    for point in key_points:
+                        point_with_citations = _append_citation_markers(point, resp, cap)
+                        markdown_sections.append(f"- {point_with_citations}")
+
+        # Research Evidence & Literature  
+        if capability_groups["research"]:
+            markdown_sections.append("\n## Research Evidence & Literature")
+            for cap, resp in capability_groups["research"]:
+                content = _strip_leading_tag(resp.response_str)
+                key_points = _extract_key_points(content)
+                if key_points:
+                    for point in key_points:
+                        point_with_citations = _append_citation_markers(point, resp, cap)
+                        markdown_sections.append(f"- {point_with_citations}")
+
+        # Current Developments
+        if capability_groups["current"]:
+            markdown_sections.append("\n## Current Developments")
+            for cap, resp in capability_groups["current"]:
+                content = _strip_leading_tag(resp.response_str)
+                key_points = _extract_key_points(content)
+                if key_points:
+                    for point in key_points:
+                        point_with_citations = _append_citation_markers(point, resp, cap)
+                        markdown_sections.append(f"- {point_with_citations}")
+
+        # Document Analysis
+        if capability_groups["analysis"]:
+            markdown_sections.append("\n## Document Analysis")
+            for cap, resp in capability_groups["analysis"]:
+                content = _strip_leading_tag(resp.response_str)
+                key_points = _extract_key_points(content)
+                if key_points:
+                    for point in key_points:
+                        point_with_citations = _append_citation_markers(point, resp, cap)
+                        markdown_sections.append(f"- {point_with_citations}")
+
+        # Additional Considerations
+        if capability_groups["other"]:
+            markdown_sections.append("\n## Additional Considerations")
+            for cap, resp in capability_groups["other"]:
+                if cap != "chitchat":  # Skip chitchat content
+                    content = _strip_leading_tag(resp.response_str)
+                    key_points = _extract_key_points(content)
+                    if key_points:
+                        for point in key_points:
+                            point_with_citations = _append_citation_markers(point, resp, cap)
+                            markdown_sections.append(f"- {point_with_citations}")
+
+        # Key Recommendations (from highest-scoring agents)
+        high_scoring_agents = [cap for cap, judgment in judgments.items() if judgment.overall_score >= 0.7]
+        if high_scoring_agents and len(outputs) > 1:
+            markdown_sections.append("\n## Key Recommendations")
+            for cap in high_scoring_agents[:2]:  # Top 2 performers
+                for agent_cap, resp in outputs:
+                    if agent_cap == cap:
+                        content = _strip_leading_tag(resp.response_str)
+                        # Extract recommendation-style sentences
+                        sentences = re.split(r"(?<=[.!?])\s+", content.strip())
+                        recommendations = [s for s in sentences if any(word in s.lower() for word in 
+                                         ["recommend", "should", "consider", "advised", "suggested"])]
+                        for rec in recommendations[:2]:  # Limit recommendations
+                            rec_with_citations = _append_citation_markers(rec.strip(), resp, cap)
+                            markdown_sections.append(f"- **{rec_with_citations}**")
                         break
-            return current
 
-        for idx in range(1, len(sorted_out)):
-            cap, resp = sorted_out[idx]
-            text = _strip_leading_tag(resp.response_str)
-            if text:
-                final_text = _unique_sentence_addition(final_text, text, cap, resp)
-
-        # Only include citations that were actually used (in the order of assigned indices)
+        final_text = "\n".join(markdown_sections)
         citations = used_citations
-        logger.info(f"HALO synthesis: {len(used_citations)} citations included in main response, {len(sorted_out)} subagents processed")
+        logger.info(f"HALO synthesis: {len(used_citations)} citations included in structured response, {len(outputs)} subagents processed")
 
         # Build structured judge_response block (no HTML) for frontend expander
         def _first_sentence(text: str) -> str:
@@ -734,18 +879,30 @@ class BioHALOAgent(BaseAgent):
         # Header lines
         judge_lines: List[str] = []
         judge_lines.append(f"**Score**: {overall_score:.2f}")
-        judge_lines.append(f"**Assessment**: {synthesis_notes if synthesis_notes else 'Responses were synthesized to balance breadth and grounding across agents.'}")
+        
+        # Add individual agent scores
+        agent_scores = []
+        for cap, resp in outputs:
+            j = judgments.get(cap)
+            if j:
+                agent_scores.append(f"{cap}: {j.overall_score:.2f}")
+        if agent_scores:
+            judge_lines.append(f"Agent Scores: {', '.join(agent_scores)}")
+        
+        judge_lines.append("")  # Empty line for separation
+        judge_lines.append(f"**Assessment**:")
+        judge_lines.append(f"{synthesis_notes if synthesis_notes else 'Responses were synthesized to balance breadth and grounding across agents.'}")
 
-        # Per-subagent blocks: Response, Score, Justification, Citations
+        # Per-subagent blocks: Response, Score, Justification, Citations  
         max_snippet_len = 800  # Increased from 400 to show more complete responses
-        for cap, resp in sorted_out:
+        for cap, resp in outputs:
             j = judgments.get(cap)
             if not j:
                 continue
             short_just = _first_sentence(j.prose_summary)
             # sources used in composed answer
             used_src_count = len(used_per_capability.get(cap, set()))
-            if cap == "rag" and used_src_count == 0 and getattr(resp, "citations", None):
+            if cap == "llama_rag" and used_src_count == 0 and getattr(resp, "citations", None):
                 used_src_count = len(resp.citations)
             
             # Full response text (not truncated for judge display)
@@ -766,16 +923,137 @@ class BioHALOAgent(BaseAgent):
                 judge_lines.append(f"  - Citations:")
                 for i, citation in enumerate(subagent_citations, 1):
                     try:
-                        title = getattr(citation, "title", "Untitled") or "Untitled"
+                        # Extract all available metadata
+                        title = getattr(citation, "title", None)
                         url = getattr(citation, "url", None)
-                        # Clean title to avoid markdown issues
-                        title = str(title).strip()
-                        if not title:
-                            title = "Untitled"
+                        file_name = getattr(citation, "file_name", None)
+                        source = getattr(citation, "source", None)
+                        start_page = getattr(citation, "start_page_label", None)
+                        end_page = getattr(citation, "end_page_label", None)
+                        # GraphRAG uses 'page' field instead of start_page_label/end_page_label  
+                        page = getattr(citation, "page", None)
+                        score = getattr(citation, "score", None)
+                        snippet = getattr(citation, "snippet", None)
+                        text = getattr(citation, "text", None)
+                        
+                        # GraphRAG-specific fields that may provide more distinguishing info
+                        doc_id = getattr(citation, "doc_id", None)
+                        paragraph = getattr(citation, "paragraph", None)
+                        triplet_key = getattr(citation, "triplet_key", None)
+                        provenance_id = getattr(citation, "provenance_id", None)
+                        file_path = getattr(citation, "file_path", None)
+                        
+                        # Build a meaningful title with fallbacks
+                        display_title = title
+                        if not display_title or display_title.strip() == "":
+                            display_title = doc_id or file_name or "Source"
+                        if display_title:
+                            display_title = str(display_title).strip()
+                        
+                        # Start building citation display
+                        citation_parts = []
+                        
+                        # Main title/header
                         if url and str(url).strip():
-                            judge_lines.append(f"    {i}. [{title}]({url})")
+                            citation_parts.append(f"**[{display_title}]({url})**")
                         else:
-                            judge_lines.append(f"    {i}. {title}")
+                            citation_parts.append(f"**{display_title}**")
+                        
+                        # Build detailed source information with location data
+                        location_parts = []
+                        
+                        # File information (prefer file_name, fallback to extracting from file_path)
+                        display_file = None
+                        if file_name and str(file_name).strip():
+                            display_file = str(file_name).strip()
+                        elif file_path and str(file_path).strip():
+                            # Extract filename from path for GraphRAG citations
+                            path_str = str(file_path).strip()
+                            display_file = path_str.split("/")[-1] if "/" in path_str else path_str
+                        
+                        if display_file:
+                            location_parts.append(f"*{display_file}*")
+                        
+                        # Page information with enhanced detail
+                        page_added = False
+                        # Check GraphRAG page field first
+                        if page and str(page).strip():
+                            location_parts.append(f"p. {page}")
+                            page_added = True
+                        # Fallback to start_page/end_page for other agent types
+                        elif start_page and str(start_page).strip():
+                            if end_page and str(end_page).strip() and start_page != end_page:
+                                location_parts.append(f"pp. {start_page}-{end_page}")
+                            else:
+                                location_parts.append(f"p. {start_page}")
+                            page_added = True
+                        
+                        # Paragraph/section information for GraphRAG
+                        if paragraph is not None and str(paragraph).strip():
+                            location_parts.append(f"¶ {paragraph}")
+                        
+                        # Source type information
+                        if source and str(source).strip() and source != "knowledge_graph":
+                            location_parts.append(f"via {source}")
+                        elif source == "knowledge_graph":
+                            location_parts.append("knowledge graph")
+                            
+                        # Relevance score
+                        if score and score > 0.0:
+                            location_parts.append(f"relevance: {score:.2f}")
+                        
+                        # Add location info if we have any
+                        if location_parts:
+                            citation_parts.append(f"({', '.join(location_parts)})")
+                        
+                        # Enhanced snippet handling - prioritize longer, more informative text
+                        best_text = None
+                        
+                        # Priority 1: snippet (usually most relevant excerpt)
+                        if snippet and str(snippet).strip() and len(str(snippet).strip()) > 15:
+                            best_text = str(snippet).strip()
+                            
+                        # Priority 2: text field (may have more context)
+                        elif text and str(text).strip() and len(str(text).strip()) > 15:
+                            best_text = str(text).strip()[:300]  # Limit very long text
+                            
+                        # Priority 3: generate contextual info from metadata
+                        elif triplet_key:
+                            best_text = f"Knowledge graph triplet: {triplet_key}"
+                        
+                        # Display the best available text
+                        if best_text:
+                            # Clean up whitespace and format nicely
+                            best_text = ' '.join(best_text.split())
+                            
+                            # Ensure reasonable length for display
+                            if len(best_text) > 200:
+                                # Try to break at sentence boundary
+                                sentences = best_text.split('. ')
+                                if len(sentences) > 1 and len(sentences[0]) < 180:
+                                    best_text = sentences[0] + '.'
+                                else:
+                                    best_text = best_text[:197] + "..."
+                            
+                            citation_parts.append(f"\n      > \"{best_text}\"")
+                        else:
+                            # Fallback: show that this is a graph citation with limited text
+                            if source == "knowledge_graph":
+                                citation_parts.append(f"\n      > *[Knowledge graph reference]*")
+                        
+                        # Add debug info for GraphRAG citations if available  
+                        debug_parts = []
+                        if doc_id and doc_id != display_title:
+                            debug_parts.append(f"doc_id: {doc_id}")
+                        if provenance_id:
+                            debug_parts.append(f"prov_id: {provenance_id}")
+                            
+                        if debug_parts and len(debug_parts) < 3:  # Only add if not too verbose
+                            citation_parts.append(f"\n      *{', '.join(debug_parts)}*")
+                        
+                        # Combine all parts
+                        judge_lines.append(f"    {i}. {' '.join(citation_parts)}")
+                        
                     except Exception as e:
                         logger.warning(f"Error processing citation {i} for {cap}: {e}")
                         judge_lines.append(f"    {i}. [Citation processing error]")

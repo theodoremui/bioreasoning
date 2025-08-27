@@ -19,7 +19,7 @@ async def test_bio_halo_basic_flow_monocapability():
     ))
 
     # Force planner to pick only RAG
-    agent._plan = lambda q: ["rag"]
+    agent._plan = lambda q: ["llama_rag"]
 
     resp = await agent.achat("What do NCCN guidelines say?")
     assert isinstance(resp, AgentResponse)
@@ -50,7 +50,7 @@ async def test_bio_halo_multicapability_merge_and_citations():
     agent._rag_agent.achat = AsyncMock(return_value=rag_resp)
     agent._graph_agent.achat = AsyncMock(return_value=graph_resp)
 
-    agent._plan = lambda q: ["graph", "rag"]
+    agent._plan = lambda q: ["graph", "llama_rag"]
 
     resp = await agent.achat("How do HER2 status and HR status interact under NCCN?")
     assert "[HALO]" in resp.response_str
@@ -141,13 +141,13 @@ async def test_planner_llm_success(monkeypatch):
     agent = BioHALOAgent(name="BioHALO")
 
     async def fake_achat_completion(self, query_str: str, **kwargs):
-        return '{"capabilities": ["graph", "rag"]}'
+        return '{"capabilities": ["graph", "llama_rag"]}'
 
     from bioagents.agents import bio_halo as mod
     monkeypatch.setattr(mod.LLM, "achat_completion", fake_achat_completion, raising=False)
 
     caps = await agent._plan_async("How do HER2 and HR status interact under NCCN?")
-    assert caps == ["graph", "rag"]
+    assert caps == ["graph", "llama_rag"]
 
 
 @pytest.mark.asyncio

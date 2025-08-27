@@ -181,17 +181,14 @@ class ChatPage:
                 subagent_sections.append(current_subagent)
             
             # Render header (Score and Assessment)
-            for line in header_lines:
-                st.markdown(line)
+            if header_lines:
+                st.markdown("\n".join(header_lines))
             
             # Render subagent sections with bold names and hr separators
-            for i, section in enumerate(subagent_sections):
-                if i > 0:
-                    st.markdown("---")  # Horizontal rule separator
-                
-                st.markdown(f"**{section['name']}**")
-                for line in section["lines"]:
-                    st.markdown(line)
+            for i, section in enumerate(subagent_sections):                
+                # Combine section name and all lines into single markdown block
+                section_content = [f"**{section['name']}**"] + section["lines"]
+                st.markdown("\n".join(section_content))
 
     def _handle_user_input(self) -> None:
         """Handle new user input and generate assistant response."""
