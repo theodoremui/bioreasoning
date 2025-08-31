@@ -65,8 +65,17 @@ class ChatPage:
 
             # Orchestrator selector
             current = SessionManager.get_orchestrator()
-            options = [OrchestratorType.HALO.value, OrchestratorType.ROUTER.value]
-            index = 1 if current is OrchestratorType.ROUTER else 0
+            options = [
+                OrchestratorType.HALO.value,
+                OrchestratorType.ROUTER.value,
+                OrchestratorType.GRAPH.value,
+                OrchestratorType.LLAMARAG.value,
+                OrchestratorType.LLAMAMCP.value,
+                OrchestratorType.BIOMCP.value,
+                OrchestratorType.WEB.value,
+                OrchestratorType.CHITCHAT.value,
+            ]
+            index = options.index(current.value)
             choice = st.radio(label="Orchestrator", options=options, index=index)
             if choice != current.value:
                 SessionManager.set_orchestrator(choice)

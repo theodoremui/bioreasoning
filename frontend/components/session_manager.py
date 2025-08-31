@@ -20,11 +20,23 @@ from bioagents.models.llms import LLM
 from bioagents.agents.base_agent import BaseAgent
 from bioagents.agents.bio_router import BioRouterAgent
 from bioagents.agents.bio_halo import BioHALOAgent
+from bioagents.agents.llamamcp_agent import LlamaMCPAgent
+from bioagents.agents.llamarag_agent import LlamaRAGAgent
+from bioagents.agents.graph_agent import GraphAgent
+from bioagents.agents.web_agent import WebReasoningAgent
+from bioagents.agents.chitchat_agent import ChitChatAgent
+from bioagents.agents.biomcp_agent import BioMCPAgent
 
 
 class OrchestratorType(Enum):
     HALO = "halo"
     ROUTER = "router"
+    LLAMAMCP = "llamamcp"
+    LLAMARAG = "llamarag"
+    GRAPH = "graph"
+    WEB = "web"
+    CHITCHAT = "chitchat"
+    BIOMCP = "biomcp"
 
 
 class SessionManager:
@@ -115,6 +127,18 @@ class SessionManager:
                 value = OrchestratorType.ROUTER
             elif key == OrchestratorType.HALO.value:
                 value = OrchestratorType.HALO
+            elif key == OrchestratorType.LLAMAMCP.value:
+                value = OrchestratorType.LLAMAMCP
+            elif key == OrchestratorType.LLAMARAG.value:
+                value = OrchestratorType.LLAMARAG
+            elif key == OrchestratorType.GRAPH.value:
+                value = OrchestratorType.GRAPH
+            elif key == OrchestratorType.WEB.value:
+                value = OrchestratorType.WEB
+            elif key == OrchestratorType.CHITCHAT.value:
+                value = OrchestratorType.CHITCHAT
+            elif key == OrchestratorType.BIOMCP.value:
+                value = OrchestratorType.BIOMCP
             else:
                 return
         elif isinstance(orchestrator, OrchestratorType):
@@ -125,6 +149,20 @@ class SessionManager:
         st.session_state.orchestrator = value
         if value is OrchestratorType.ROUTER:
             st.session_state.reasoner = BioRouterAgent(name="BioRouter")
+        elif value is OrchestratorType.HALO:
+            st.session_state.reasoner = BioHALOAgent(name="BioHALO")
+        elif value is OrchestratorType.LLAMAMCP:
+            st.session_state.reasoner = LlamaMCPAgent(name="LlamaMCPAgent")
+        elif value is OrchestratorType.LLAMARAG:
+            st.session_state.reasoner = LlamaRAGAgent(name="LlamaRAGAgent")
+        elif value is OrchestratorType.GRAPH:
+            st.session_state.reasoner = GraphAgent(name="GraphAgent")
+        elif value is OrchestratorType.WEB:
+            st.session_state.reasoner = WebReasoningAgent(name="WebReasoningAgent")
+        elif value is OrchestratorType.CHITCHAT:
+            st.session_state.reasoner = ChitChatAgent(name="ChitChatAgent")
+        elif value is OrchestratorType.BIOMCP:
+            st.session_state.reasoner = BioMCPAgent(name="BioMCPAgent")
         else:
             st.session_state.reasoner = BioHALOAgent(name="BioHALO")
 
