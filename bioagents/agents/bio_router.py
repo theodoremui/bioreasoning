@@ -85,6 +85,11 @@ class BioRouterAgent(BaseAgent):
         def route_llamarag() -> str:
             """Route to the RAG agent for document retrieval and simple questions about NCCN Breast Cancer Guidelines."""
             return "llamarag"
+        
+        @function_tool()
+        def route_llamamcp() -> str:
+            """Route to the MCP agent for document retrieval and simple questions about NCCN Breast Cancer Guidelines."""
+            return "llamamcp"
 
         @function_tool()
         def route_biomcp() -> str:
@@ -108,7 +113,7 @@ class BioRouterAgent(BaseAgent):
             "Do NOT answer the query yourself. Follow these strict rules:\n\n"
             "- Use route_graph for complex reasoning questions about NCCN Breast Cancer guidelines that require understanding relationships between treatments, conditions, and patient factors.\n"
             "- Use route_llamarag for simple document retrieval questions about NCCN Breast Cancer guidelines.\n"
-            ""
+            "- Use route_llamamcp for simple document retrieval questions about NCCN Breast Cancer guidelines.\n"
             "- Use route_biomcp ONLY for biomedical/clinical topics (genes, variants, diseases, trials, papers, biomedical datasets).\n"
             "- Use route_websearch for general knowledge, science (physics/astronomy/chemistry), current events, and anything not clearly biomedical.\n"
             "- Use route_chitchat for informal conversation when no task is requested.\n\n"
@@ -127,17 +132,16 @@ class BioRouterAgent(BaseAgent):
             instructions=router_instructions,
             handoffs=[
                 self._llamarag_agent._agent,
-                (
-                    self._biomcp_agent._agent
-                    if hasattr(self._biomcp_agent, "_agent")
-                    else None
-                ),
+                self._llamamcp_agent._agent,
+                self._graph_agent._agent,
+                self._biomcp_agent._agent,
                 self._web_agent._agent,
                 self._chit_chat_agent._agent,
             ],
             tools=[
                 route_graph,
                 route_llamarag,
+                route_llamamcp,
                 route_biomcp,
                 route_websearch,
                 route_chitchat,

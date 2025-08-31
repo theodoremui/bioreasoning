@@ -342,7 +342,11 @@ class GraphRAGQueryEngine(CustomQueryEngine, IQueryEngine):
         """
         # Strategy 1: Use triplets with optional citations
         if chosen_triplets:
-            return self._generate_cited_response(chosen_triplets, query_str, append_citations=append_citations)
+            return self._generate_cited_response(
+                chosen_triplets,
+                query_str,
+                append_citations=append_citations,
+            )
 
         # Strategy 2: Use detail blocks without citations
         elif detail_only_blocks:
@@ -354,7 +358,9 @@ class GraphRAGQueryEngine(CustomQueryEngine, IQueryEngine):
                 community_summaries, chosen_community_ids, query_str
             )
 
-    def _generate_cited_response(self, triplets: List[tuple], query_str: str, append_citations: bool = False) -> str:
+    def _generate_cited_response(
+        self, triplets: List[tuple], query_str: str, append_citations: bool = False
+    ) -> str:
         """Generate response with optional citations from triplets.
 
         Args:

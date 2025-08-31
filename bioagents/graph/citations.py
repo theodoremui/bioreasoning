@@ -28,7 +28,7 @@ class CitationBuilder(ICitationBuilder):
         - Context block generation with citation markers
     """
 
-    def __init__(self, snippet_max_length: int = 500):
+    def __init__(self, snippet_max_length: int = 2048):
         """Initialize citation builder.
 
         Args:
@@ -178,7 +178,7 @@ class EnhancedCitationBuilder(CitationBuilder):
 
     def __init__(
         self,
-        snippet_max_length: int = 500,
+        snippet_max_length: int = 2048,
         graph_store=None,
         enable_fallback_strategies: bool = True,
     ):

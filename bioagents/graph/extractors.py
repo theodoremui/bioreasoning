@@ -146,7 +146,7 @@ class ProvenanceEnricher:
     following SRP by focusing solely on provenance enrichment.
     """
 
-    def __init__(self, snippet_max_length: int = 500):
+    def __init__(self, snippet_max_length: int = 1000):
         """Initialize provenance enricher.
 
         Args:
@@ -259,28 +259,81 @@ class ProvenanceEnricher:
         }
 
     def _create_snippet(self, node: BaseNode) -> str:
-        """Create contextual snippet from node content.
+        """Create contextual snippet from node content without metadata prefixes.
+
+        This method extracts clean text content from the node without the metadata
+        prefixes that get_content(metadata_mode="llm") would add. This prevents
+        citation snippets from containing unwanted metadata like "doc_id: ..."
 
         Args:
             node: Source text node
 
         Returns:
-            Contextual snippet text
+            Contextual snippet text containing only the actual content
         """
-        try:
-            full_text = node.get_content(metadata_mode="llm") or ""
-        except Exception:
-            full_text = ""
+        full_text = self._extract_clean_text_content(node)
+
+        if not full_text:
+            return ""
 
         snippet = make_contextual_snippet(
             full_text, "", max_length=self.snippet_max_length
         )
 
         # Fallback to truncated full text if snippet is empty
-        if not snippet and full_text:
+        if not snippet:
             snippet = full_text[: self.snippet_max_length]
 
         return snippet
+
+    def _extract_clean_text_content(self, node: BaseNode) -> str:
+        """Extract clean text content from node without metadata prefixes.
+        
+        This method tries multiple approaches to get the cleanest possible text:
+        1. Raw text content without metadata
+        2. Content with metadata_mode="none" to avoid prefixes
+        3. Direct text attribute access
+        4. Fallback with metadata cleaning if needed
+        
+        Args:
+            node: Source text node
+            
+        Returns:
+            Clean text content without metadata prefixes
+        """
+        # Strategy 1: Try to get content without metadata mode
+        try:
+            clean_text = node.get_content(metadata_mode="none")
+            if clean_text and clean_text.strip():
+                return clean_text.strip()
+        except Exception:
+            pass
+
+        # Strategy 2: Try accessing text attribute directly
+        try:
+            if hasattr(node, 'text') and node.text:
+                return str(node.text).strip()
+        except Exception:
+            pass
+
+        # Strategy 3: Try get_content with default parameters
+        try:
+            clean_text = node.get_content()
+            if clean_text and clean_text.strip():
+                return clean_text.strip()
+        except Exception:
+            pass
+
+        # Strategy 4: Last resort - use metadata_mode="llm" but warn about potential prefixes
+        try:
+            content_with_metadata = node.get_content(metadata_mode="llm")
+            if content_with_metadata and content_with_metadata.strip():
+                # This might contain metadata prefixes, but it's better than nothing
+                return content_with_metadata.strip()
+        except Exception:
+            pass
+
+        return ""
 
     def _generate_provenance_id(self, base_prov: dict, triplet_key: str) -> str:
         """Generate unique provenance ID.
@@ -423,8 +476,8 @@ class GraphRAGExtractor(TransformComponent, IKnowledgeExtractor):
         if not hasattr(node, "text"):
             raise ValueError("Node must have text attribute")
 
-        # Get text content for extraction
-        text = node.get_content(metadata_mode="llm")
+        # Get clean text content for extraction (without metadata prefixes)
+        text = self._extract_clean_text_content(node)
         if not text or not text.strip():
             return node  # Return unchanged if no text
 
