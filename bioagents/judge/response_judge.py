@@ -98,8 +98,6 @@ class ResponseJudge(ResponseJudgeInterface):
         timeout: int = 15,
         temperature: float = 0.1,
         enable_schema_mode: bool = True,
-        max_citations_in_prompt: int = 6,
-        max_response_chars_in_prompt: int = 1024,
     ) -> None:
         """Initialize the response judge with configurable parameters.
         
@@ -108,20 +106,16 @@ class ResponseJudge(ResponseJudgeInterface):
             timeout: Timeout in seconds for LLM requests.
             temperature: Sampling temperature for LLM (0.0-2.0, lower = more deterministic).
             enable_schema_mode: Whether to use JSON schema constraints when available.
-            max_citations_in_prompt: Maximum number of citations to include in the prompt.
-            max_response_chars_in_prompt: Maximum number of characters to include in the prompt.
         """
         self._model_name = model_name
         self._timeout = timeout
         self._temperature = temperature
         self._enable_schema_mode = enable_schema_mode
-        self._llm = LLM(model_name=model_name, timeout=timeout)
-        self._max_citations_in_prompt = max_citations_in_prompt
-        self._max_response_chars_in_prompt = max_response_chars_in_prompt
+        self._llm = LLM(model_name=model_name, timeout=self._timeout)
         
         logger.info(
-            f"ResponseJudge initialized: model={model_name}, timeout={timeout}s, "
-            f"temp={temperature}, schema_mode={enable_schema_mode}"
+            f"ResponseJudge initialized: model={self._model_name}, timeout={self._timeout}s, "
+            f"temp={self._temperature}, schema_mode={self._enable_schema_mode}"
         )
 
     @property
@@ -159,19 +153,18 @@ class ResponseJudge(ResponseJudgeInterface):
             JudgmentError: When critical evaluation failures occur.
         """
         try:
-            # Prepare citations summary for evaluation context (limited)
-            limited_citations = (response.citations or [])[: self._max_citations_in_prompt]
-            citations_text = self._format_citations(limited_citations)
+            # Prepare citations summary for evaluation context (use all available)
+            citations_text = self._format_citations(response.citations or [])
             
             # Format context information
             context_info = self._format_context(context) if context else "None provided"
             
-            # Format the judgment prompt (limit response length)
-            display_response = (response.response_str or "")[: self._max_response_chars_in_prompt]
+            # Use full response text without truncation and keep context as provided
+            response_for_prompt = (response.response_str or "").strip()
             prompt = JUDGMENT_PROMPT.format(
                 query=query,
                 agent_name=agent_name,
-                response=display_response or "No response generated",
+                response=response_for_prompt or "No response generated",
                 citations=citations_text,
                 context_info=context_info
             )
@@ -338,6 +331,8 @@ class ResponseJudge(ResponseJudgeInterface):
 
         # Validate using Pydantic model
         return AgentJudgment.model_validate(raw_data)
+
+    # Truncation helpers intentionally removed: judge uses full response and all citations
 
     def create_fallback_judgment(
         self, 
