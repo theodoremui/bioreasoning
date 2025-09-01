@@ -90,6 +90,7 @@ class BaseAgent(ABC):
         output_str = ""
         try:
             response: AgentResponse = await self.achat(query_str)
+            output_str = response.response_str
             judgement_str: AgentJudgment = response.judgement
             m = re.search(
                 r"(?:\*\*)?\s*Score\s*(?:\*\*)?\s*:\s*([0-9]+(?:\.[0-9]+)?)",
@@ -98,7 +99,6 @@ class BaseAgent(ABC):
             output_str = response.response_str + "\tScore: " + score_str
         except Exception as e:
             logger.error(f"Error getting score from judgement: {e}")
-            output_str = response.response_str
         return output_str
 
     async def achat(self, query_str: str) -> AgentResponse:

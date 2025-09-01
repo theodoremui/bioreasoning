@@ -94,9 +94,9 @@ class ResponseJudge(ResponseJudgeInterface):
 
     def __init__(
         self, 
-        model_name: str = LLM.GPT_4_1, 
-        timeout: int = 60,
-        temperature: float = 0.01,
+        model_name: str = LLM.GPT_4_1_MINI, 
+        timeout: int = 15,
+        temperature: float = 0.1,
         enable_schema_mode: bool = True,
         max_citations_in_prompt: int = 6,
         max_response_chars_in_prompt: int = 1024,
