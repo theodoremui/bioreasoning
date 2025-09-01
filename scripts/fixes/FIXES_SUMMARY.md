@@ -40,7 +40,8 @@ winget install ffmpeg
 .\scripts\run-docs-server.ps1
 
 # Unix/macOS  
-./scripts/run-docs-server.sh
+# Use updated script name
+./scripts/run-server-docs.sh
 ```
 
 ### 2. Start the Streamlit Client
@@ -49,7 +50,8 @@ winget install ffmpeg
 .\scripts\run-docs-client.ps1
 
 # Unix/macOS
-./scripts/run-docs-client.sh
+# Use updated script name
+./scripts/run-client.sh
 ```
 
 ### 3. Test the System

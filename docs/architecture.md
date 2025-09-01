@@ -2,34 +2,33 @@
 
 ## High-Level Overview
 
-The BioReasoning system is split into two main components:
-- **Knowledge Client (Streamlit Web App)**: User interface for uploading documents, viewing results, and generating podcasts.
-- **Knowledge Server (MCP)**: Backend server responsible for document processing, mindmap generation, and podcast creation.
+The BioReasoning system consists of a Streamlit client and multiple MCP servers:
+- **Knowledge Client (Streamlit Web App)**: User interface for chat, uploads, results, and podcast generation.
+- **BioMCP Server**: Biomedical tools and research endpoints (variants, PubMed, biomedical datasets).
+- **DocMCP Server**: Document-centric tools backed by a LlamaCloud index (RAG, mindmaps, podcast generation).
 
 ## Component Diagram
 
 ```mermaid
-flowchart TD
+flowchart LR
     User([User])
     subgraph Client
-        StreamlitApp([Streamlit Knowledge Client])
+        UI([Streamlit Knowledge Client])
+        Orchestrator([Orchestrator Selector: halo/router/...])
     end
-    subgraph Server
-        MCPServer([MCP Knowledge Server])
-        DocProc([Document Processor])
-        MindMap([Mindmap Generator])
-        Podcast([Podcast Generator])
+    subgraph Servers
+        subgraph BioMCP
+            BioMCPServer([BioMCP Server])
+        end
+        subgraph DocMCP
+            DocMCPServer([DocMCP Server])
+        end
     end
 
-    User --> StreamlitApp
-    StreamlitApp --"Upload/Query"--> MCPServer
-    MCPServer --"Process Document"--> DocProc
-    DocProc --"Results"--> MCPServer
-    MCPServer --"Generate Mindmap"--> MindMap
-    MindMap --"HTML Mindmap"--> MCPServer
-    MCPServer --"Generate Podcast"--> Podcast
-    Podcast --"Audio File"--> MCPServer
-    MCPServer --"Results, Mindmap, Podcast"--> StreamlitApp
+    User --> UI
+    UI --> Orchestrator
+    Orchestrator --> BioMCPServer
+    Orchestrator --> DocMCPServer
 ```
 
 ## Data Flow: Document Processing
@@ -42,13 +41,13 @@ flowchart TD
    - Prepares content for podcast generation
 4. **Results are sent back** to the client and displayed in the UI.
 
-## Data Flow: Mindmap Generation
+## Data Flow: Mindmap Generation (DocMCP)
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Client as Streamlit Client
-    participant Server as MCP Server
+    participant Server as DocMCP Server
     participant MindMap as Mindmap Generator
 
     User->>Client: Upload document
@@ -59,13 +58,39 @@ sequenceDiagram
     Client->>User: Display mindmap
 ```
 
-## Data Flow: Podcast Generation
+## Data Flow: Podcast Generation (DocMCP)
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Client as Streamlit Client
-    participant Server as MCP Server
+    participant Server as DocMCP Server
+```
+
+## Chat Orchestration
+
+The chat page (`frontend/pages/1_Chat.py`) provides an Orchestrator selector. The `SessionManager` maps selections to agents (`BioHALOAgent`, `BioRouterAgent`, `GraphAgent`, `LlamaRAGAgent`, `LlamaMCPAgent`, `BioMCPAgent`, `WebReasoningAgent`, `ChitChatAgent`).
+
+```mermaid
+flowchart TD
+    UI([Chat UI]) --> Sel[Select Orchestrator]
+    Sel -->|halo| HALO[BioHALOAgent]
+    Sel -->|router| Router[BioRouterAgent]
+    Sel -->|graph| Graph[GraphAgent]
+    Sel -->|llamarag| RAG[LlamaRAGAgent]
+    Sel -->|llamamcp| LMCP[LlamaMCPAgent]
+    Sel -->|biomcp| Bio[BioMCPAgent]
+    Sel -->|web| Web[WebReasoningAgent]
+    Sel -->|chitchat| Chat[ChitChatAgent]
+
+    HALO --> DocMCP
+    HALO --> BioMCP
+    RAG --> DocMCP
+    Graph --> DocMCP
+    LMCP --> DocMCP
+    Bio --> BioMCP
+    Web --> Internet[[Web]]
+```
     participant Podcast as Podcast Generator
 
     User->>Client: Configure podcast options

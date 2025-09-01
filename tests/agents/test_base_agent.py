@@ -59,7 +59,7 @@ class TestBaseAgent:
         assert isinstance(response, AgentResponse)
         assert response.response_str == "Test response"
         assert response.citations == []
-        assert response.judge_response == ""
+        assert response.judgement == ""
         assert response.route == AgentRouteType.REASONING
 
     def test_construct_response_with_citations(self):
@@ -93,7 +93,7 @@ class TestBaseAgent:
         )
 
         assert response.response_str == "Test response with citations"
-        assert response.judge_response == "judge"
+        assert response.judgement == "judge"
         assert response.route == AgentRouteType.WEBSEARCH
         assert len(response.citations) == 1
         assert response.citations[0].url == "https://example.com"

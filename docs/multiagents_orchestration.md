@@ -18,7 +18,7 @@
 
 The BioAgents system demonstrates a sophisticated multi-agent orchestration architecture designed for biomedical query processing. This tutorial provides a comprehensive guide to understanding and extending the current implementation, incorporating the latest research findings from 2024-2025 in multi-agent systems, orchestration patterns, and evaluation methodologies.
 
-The BioAgents system includes a fully functional `BioHALOAgent` implementation that demonstrates the HALO framework principles in practice. This concrete implementation provides a working example of hierarchical orchestration with LLM-based planning, parallel execution, and intelligent response synthesis.
+The BioAgents system includes a fully functional `BioHALOAgent` implementation that demonstrates the HALO framework principles in practice. This concrete implementation provides a working example of hierarchical orchestration with LLM-based planning, parallel execution, structured judging, and intelligent response synthesis. The Streamlit UI exposes a sidebar selector to switch orchestrators at runtime (`halo`, `router`, `graph`, `llamarag`, `llamamcp`, `biomcp`, `web`, `chitchat`).
 
 Recent advances in multi-agent systems have introduced revolutionary concepts such as **hierarchical orchestration frameworks** [17], and **adaptive retrieval-augmented generation** [18]. These developments are transforming how we design, implement, and evaluate multi-agent systems across various domains, particularly in specialized fields like biomedicine.
 
@@ -129,7 +129,7 @@ We provide a concrete HALO-style orchestrator named `BioHALOAgent` that compleme
 - **Capability Planning**: Uses `CapabilityPlanner` class with LLM-based planning (`LLM.GPT_4_1_MINI`) to determine required capabilities
 - **Dynamic Role Selection**: Maps capability tags (graph, rag, biomcp, web, llama_mcp, chitchat) to concrete sub-agents
 - **Parallel Execution**: Runs selected agents concurrently using `asyncio.gather()`
-- **Response Judging**: Lightweight heuristic scoring based on citations, response length, and domain alignment
+- **Structured Judging**: LLM-based evaluation with scores and justifications (see `bioagents/judge/`); summary is surfaced to the UI via the assistant message's Judge expander
 - **Intelligent Synthesis**: Merges responses with inline citation markers `[1,2]` and de-duplicates sources
 
 **Implementation Details:**
@@ -170,7 +170,7 @@ async def run():
     async with BioHALOAgent(name="BioHALO") as agent:
         resp = await agent.achat("How do HER2 and HR status interact under NCCN?")
         print(resp.response_str)        # Final synthesized answer with [HALO] prefix
-        print(resp.judge_response)      # HALO critique summary
+        print(resp.judgement)           # HALO critique summary
         for src in resp.citations:      # Merged, de-duplicated citations
             print(src.url)
 ```
@@ -179,7 +179,7 @@ async def run():
 - Primary response prefixed with `[HALO]`
 - Inline citation markers like `...recommended therapy [1,3]`
 - Merged citations list with global indexing
-- Judge summary in `AgentResponse.judge_response`
+- Judge summary delivered via `AgentResponse.judgement` and displayed in the UI's Judge expander
 
 **CapabilityPlanner Implementation:**
 The `CapabilityPlanner` class provides structured LLM-based capability planning with robust fallback mechanisms:
@@ -215,11 +215,10 @@ def _synthesize(self, outputs: List[Tuple[str, AgentResponse]], judge_text: str)
 ```
 
 **Judging Mechanism:**
-Lightweight heuristic scoring considers:
-- Citation count (up to 3 points)
-- Response length (>120 chars = +1 point)
-- Domain alignment bonuses (graph for relationships, RAG for documents)
-- Results in `judge_response` field for transparency
+LLM-based structured judging considers:
+- Accuracy, completeness, groundedness, professional tone, clarity/coherence, relevance, usefulness
+- Overall score is the equal-weighted average
+- Summary is exposed via `AgentResponse.judgement` for UI display
 
 **Error Handling and Resilience:**
 - **Sub-agent Failures**: Individual agent errors are caught and replaced with availability messages
@@ -986,7 +985,7 @@ async def medical_query_example():
         response = await agent.achat(query)
         
         print(f"Response: {response.response_str}")
-        print(f"Judge Summary: {response.judge_response}")
+        print(f"Judge Summary: {response.judgement}")
         print(f"Citations: {len(response.citations)}")
         
         # Example output:

@@ -33,6 +33,11 @@ from bioagents.agents.chitchat_agent import ChitChatAgent
 from bioagents.agents.llamamcp_agent import LlamaMCPAgent
 from bioagents.models.llms import LLM
 from bioagents.agents.llamarag_agent import LlamaRAGAgent
+from bioagents.judge import ResponseJudge, HALOJudgmentSummary, AgentJudgment
+
+# Back-compat shim for tests that monkeypatch HALOJudge
+class HALOJudge(ResponseJudge):
+    pass
 
 
 PLANNING_PROMPT = """\
@@ -88,104 +93,6 @@ No prose. No other text.
 {{"capabilities": ["graph", "llama_rag"]}}
 """
 
-JUDGE_PROMPT = """You are an impartial judge, evaluating one subagent's response to a user query.
-
-Instructions:
-- Write a concise 2–3 sentence summary of strengths and areas for improvement.
-- Assign scores between 0.0 and 1.0 and compute an overall score (equal weights) with brief justifications per criterion.
-- Return ONLY a JSON object that conforms EXACTLY to the provided JSON Schema.
-
-User Query:
-{query}
-
-Subagent Response:
-Capability: {capability}
-Response: {response}
-
-Citations:
-{citations}
-"""
-
-
-class JudgmentScores(BaseModel):
-    accuracy: float = Field(
-        ..., ge=0.0, le=1.0, description="How accurate is the response?")
-    completeness: float = Field(
-        ..., ge=0.0, le=1.0, description="How complete is the response?")
-    groundedness: float = Field(
-        ..., ge=0.0, le=1.0, description="How grounded is the response?")
-    professional_tone: float = Field(
-        ..., ge=0.0, le=1.0, description="How professional is the tone of the response?")
-    clarity_coherence: float = Field(
-        ..., ge=0.0, le=1.0, description="How clear and coherent is the response?")
-    relevance: float = Field(
-        ..., ge=0.0, le=1.0, description="How relevant is the response to the query?")
-    usefulness: float = Field(
-        ..., ge=0.0, le=1.0, description="How useful is the response?")
-
-
-class JudgmentJustifications(BaseModel):
-    accuracy: str = Field(
-        ..., description="Justification for the accuracy score")
-    completeness: str = Field(
-        ..., description="Justification for the completeness score")
-    groundedness: str = Field(
-        ..., description="Justification for the groundedness score")
-    professional_tone: str = Field(
-        ..., description="Justification for the professional tone score")
-    clarity_coherence: str = Field(
-        ..., description="Justification for the clarity and coherence score")
-    relevance: str = Field(
-        ..., description="Justification for the relevance score")
-    usefulness: str = Field(
-        ..., description="Justification for the usefulness score")
-
-
-class AgentJudgment(BaseModel):
-    """Structured judgment of a subagent's response quality."""
-
-    prose_summary: str = Field(
-        ..., 
-        description="2-3 sentence summary of strengths and areas for improvement"
-    )
-    scores: JudgmentScores = Field(
-        ..., 
-        description="Scores for the response"
-    )
-    overall_score: float = Field(
-        ..., 
-        ge=0.0, 
-        le=1.0, 
-        description="Overall weighted score"
-    )
-    justifications: JudgmentJustifications = Field(
-        ..., description="Justifications for the scores")
-
-    class Config:
-        extra = "forbid"  # Strict validation - no extra fields allowed
-
-
-class HALOJudgmentSummary(BaseModel):
-    """Summary of all subagent judgments for HALO orchestration."""
-    
-    individual_judgments: Dict[str, AgentJudgment] = Field(
-        ..., 
-        description="Judgment for each capability"
-    )
-    overall_halo_score: float = Field(
-        ..., 
-        ge=0.0, 
-        le=1.0, 
-        description="Overall HALO system score"
-    )
-    synthesis_notes: str = Field(
-        ..., description="Notes for response synthesis"
-    )
-    
-    class Config:
-        extra = "forbid"
-
-
 class CapabilityPlanner:
     """Plan capabilities from an LLM JSON object output.
 
@@ -240,150 +147,7 @@ class CapabilityPlanner:
             return ["chitchat"]
 
 
-class HALOJudge:
-    """LLM-based judge for evaluating subagent responses using structured output."""
-    
-    def __init__(self, model_name: str = LLM.GPT_4_1_MINI, timeout: int = 15) -> None:
-        self._llm = LLM(model_name=model_name, timeout=timeout)
-    
-    async def judge_response(self, capability: str, response: AgentResponse, query: str) -> AgentJudgment:
-        """Judge a single subagent response using LLM with structured output."""
-        
-        # Prepare citations text
-        citations_text = "None"
-        if response.citations:
-            citations_text = "\n".join([
-                f"- {getattr(c, 'url', 'Unknown source')}: {getattr(c, 'title', 'No title')}"
-                for c in response.citations
-            ])
-        
-        # Format prompt
-        prompt = JUDGE_PROMPT.format(
-            query=query,
-            capability=capability,
-            response=response.response_str or "No response",
-            citations=citations_text
-        )
-        
-        try:
-            # Prefer JSON Schema-constrained responses if available
-            schema = AgentJudgment.model_json_schema()
-            try:
-                content = await self._llm.achat_completion(
-                    prompt,
-                    temperature=0.1,
-                    response_format={
-                        "type": "json_schema",
-                        "json_schema": {"name": "AgentJudgment", "schema": schema},
-                    },
-                )
-            except Exception as e:
-                logger.debug(f"json_schema format not available or failed ({e}); falling back to json_object")
-                content = await self._llm.achat_completion(
-                    prompt + "\n\nReturn ONLY a JSON object conforming to this JSON Schema:\n" + json.dumps(schema),
-                    temperature=0.1,
-                    response_format={"type": "json_object"},
-                )
 
-            # Parse, normalize, and validate JSON
-            raw = json.loads((content or "{}").strip())
-
-            # Normalize minimal fields if missing
-            if not isinstance(raw, dict):
-                raw = {}
-            raw.setdefault("prose_summary", "")
-            raw.setdefault("scores", {})
-            raw.setdefault("justifications", {})
-
-            # Ensure all scores exist and are clamped
-            scores = raw.get("scores") or {}
-            def _clamp(v: float) -> float:
-                try:
-                    x = float(v)
-                except Exception:
-                    x = 0.0
-                return max(0.0, min(1.0, x))
-            for k in [
-                "accuracy",
-                "completeness",
-                "groundedness",
-                "professional_tone",
-                "clarity_coherence",
-                "relevance",
-                "usefulness",
-            ]:
-                scores[k] = _clamp(scores.get(k, 0.0))
-            raw["scores"] = scores
-
-            # Compute overall_score if missing using equal weights
-            if "overall_score" not in raw:
-                raw["overall_score"] = _clamp(sum(scores.values()) / 7.0 if scores else 0.0)
-
-            # Ensure justifications include all keys
-            just = raw.get("justifications") or {}
-            for k in [
-                "accuracy",
-                "completeness",
-                "groundedness",
-                "professional_tone",
-                "clarity_coherence",
-                "relevance",
-                "usefulness",
-            ]:
-                just[k] = str(just.get(k, ""))
-            raw["justifications"] = just
-
-            judgment = AgentJudgment.model_validate(raw)
-
-            logger.debug(f"HALO Judge for {capability}: overall_score={judgment.overall_score}")
-            return judgment
-
-        except Exception as e:
-            logger.warning(f"HALO Judge failed for {capability}: {e}")
-            # Fallback to basic scoring
-            return self._fallback_judgment(capability, response, query)
-    
-    def _fallback_judgment(self, capability: str, response: AgentResponse, query: str) -> AgentJudgment:
-        """Fallback judgment when LLM judging fails."""
-        
-        # Basic heuristic scoring similar to original method
-        score = 0.0
-        if response.citations:
-            score += min(0.3, len(response.citations) * 0.1)
-        if len(response.response_str or "") > 120:
-            score += 0.1
-        
-        # Domain alignment
-        if capability == "graph" and any(k in query.lower() for k in ["interact", "relationship", "correlat"]):
-            score += 0.1
-        if capability == "llama_rag" and any(k in query.lower() for k in ["nccn", "guideline", "pdf", "document"]):
-            score += 0.1
-        
-        # Cap at 1.0
-        score = min(1.0, score)
-        
-        return AgentJudgment(
-            prose_summary=f"Fallback judgment for {capability} due to LLM evaluation failure",
-            scores={
-                "accuracy": score,
-                "completeness": score,
-                "groundedness": score,
-                "professional_tone": 0.5,
-                "clarity_coherence": score,
-                "relevance": score,
-                "usefulness": score
-            },
-            overall_score=score,
-            justifications={
-                "accuracy": "Fallback scoring due to LLM evaluation failure",
-                "completeness": "Fallback scoring due to LLM evaluation failure",
-                "groundedness": "Fallback scoring due to LLM evaluation failure",
-                "professional_tone": "Fallback scoring due to LLM evaluation failure",
-                "clarity_coherence": "Fallback scoring due to LLM evaluation failure",
-                "relevance": "Fallback scoring due to LLM evaluation failure",
-                "usefulness": "Fallback scoring due to LLM evaluation failure"
-            }
-        )
 
 
 class BioHALOAgent(BaseAgent):
@@ -429,8 +193,6 @@ class BioHALOAgent(BaseAgent):
         self._chat_agent: ChitChatAgent | None = None
         self._llamamcp_agent: LlamaMCPAgent | None = None
         
-        # LLM-based judge for response evaluation
-        self._halo_judge = HALOJudge(model_name=model_name)
 
     async def start(self) -> None:
         if self._started:
@@ -589,11 +351,11 @@ class BioHALOAgent(BaseAgent):
     async def _judge(self, outputs: List[Tuple[str, AgentResponse]], query: str) -> HALOJudgmentSummary:
         """Produce LLM-based structured judgments across sub-agent outputs.
 
-        Uses HALOJudge to evaluate each response with structured scoring and justification.
+        Uses ResponseJudge to evaluate each response with structured scoring and justification.
         Returns a comprehensive judgment summary for synthesis guidance.
         
         Args:
-            outputs: A list of tuples, each containing a capability and the corresponding AgentResponse.
+            outputs: A list of tuples, each containing a subagent and the corresponding AgentResponse.
             query: The user query.
             
         Returns:
@@ -603,16 +365,16 @@ class BioHALOAgent(BaseAgent):
         # Judge each subagent response individually
         individual_judgments: Dict[str, AgentJudgment] = {}
         
-        for capability, response in outputs:
+        for subagent_name, response in outputs:
             try:
-                judgment = await self._halo_judge.judge_response(capability, response, query)
-                individual_judgments[capability] = judgment
-                logger.info(f"HALO Judge {capability}: score={judgment.overall_score:.3f}")
+                judgment = await self._response_judge.judge_response(subagent_name, response, query)
+                individual_judgments[subagent_name] = judgment
+                logger.info(f"ResponseJudge {subagent_name}: score={judgment.overall_score:.3f}")
             except Exception as e:
-                logger.warning(f"HALO Judge failed for {capability}: {e}")
+                logger.warning(f"ResponseJudge failed for {subagent_name}: {e}")
                 # Use fallback judgment
-                individual_judgments[capability] = self._halo_judge._fallback_judgment(
-                    capability, response, query
+                individual_judgments[subagent_name] = self._response_judge.create_fallback_judgment(
+                    subagent_name, response, query
                 )
         
         # Calculate overall HALO system score
@@ -707,7 +469,7 @@ class BioHALOAgent(BaseAgent):
                 return repr(citation)
 
         # Pre-index all citations from all subagents to ensure the Sources list includes union
-        for cap, resp in outputs:
+        for agent_name, resp in outputs:
             for c in getattr(resp, "citations", []) or []:
                 key = _citation_identity(c)
                 if key and key not in citation_index:
@@ -769,7 +531,7 @@ class BioHALOAgent(BaseAgent):
             return key_points
 
         # Organize responses by capability type
-        capability_groups = {
+        agent_groups = {
             "guidelines": [],  # graph, llama_rag
             "research": [],    # biomcp
             "current": [],     # web
@@ -777,114 +539,116 @@ class BioHALOAgent(BaseAgent):
             "other": []        # chitchat, etc.
         }
 
-        for cap, resp in outputs:
-            if cap in ["graph", "llama_rag"]:
-                capability_groups["guidelines"].append((cap, resp))
-            elif cap == "biomcp":
-                capability_groups["research"].append((cap, resp))
-            elif cap == "web":
-                capability_groups["current"].append((cap, resp))
-            elif cap == "llama_mcp":
-                capability_groups["analysis"].append((cap, resp))
+        for agent_name, resp in outputs:
+            if agent_name in ["graph", "llama_rag"]:
+                agent_groups["guidelines"].append((agent_name, resp))
+            elif agent_name == "biomcp":
+                agent_groups["research"].append((agent_name, resp))
+            elif agent_name == "web":
+                agent_groups["current"].append((agent_name, resp))
+            elif agent_name == "llama_mcp":
+                agent_groups["analysis"].append((agent_name, resp))
             else:
-                capability_groups["other"].append((cap, resp))
+                agent_groups["other"].append((agent_name, resp))
 
         # Find best performing agent for executive summary
         judgments = getattr(judgment_summary, "individual_judgments", {})
         best_agent = None
         best_score = 0.0
-        for cap, resp in outputs:
-            judgment = judgments.get(cap)
+        for agent_name, resp in outputs:
+            judgment = judgments.get(agent_name)
             if judgment and judgment.overall_score > best_score:
                 best_score = judgment.overall_score
-                best_agent = (cap, resp)
+                best_agent = (agent_name, resp)
 
         # Build structured markdown response
         markdown_sections = []
         
-        # Executive Summary from best-performing agent
+        # Executive Summary from best-performing agent (ensure HALO prefix)
         if best_agent:
-            cap, resp = best_agent
+            agent_name, resp = best_agent
             summary_text = _strip_leading_tag(resp.response_str)
             if summary_text:
                 # Take first 2-3 sentences as executive summary
                 summary_sentences = re.split(r"(?<=[.!?])\s+", summary_text.strip())
                 executive_summary = ". ".join(summary_sentences[:2]) + "."
-                executive_summary = _append_citation_markers(executive_summary, resp, cap)
-                markdown_sections.append(f"\n{executive_summary}")
+                executive_summary = _append_citation_markers(executive_summary, resp, agent_name)
+                markdown_sections.append(f"[HALO] {executive_summary}")
+        else:
+            markdown_sections.append("[HALO] Response synthesis in progress.")
 
         # Clinical Guidelines & Protocols
-        if capability_groups["guidelines"]:
+        if agent_groups["guidelines"]:
             markdown_sections.append("\n## Clinical Guidelines & Protocols")
-            for cap, resp in capability_groups["guidelines"]:
+            for agent_name, resp in agent_groups["guidelines"]:
                 content = _strip_leading_tag(resp.response_str)
                 key_points = _extract_key_points(content)
                 if key_points:
-                    source_name = "NCCN Guidelines" if cap == "graph" else "Clinical Documents"
+                    source_name = "NCCN Guidelines" if agent_name == "graph" else "Clinical Documents"
                     markdown_sections.append(f"\n### {source_name}")
                     for point in key_points:
-                        point_with_citations = _append_citation_markers(point, resp, cap)
+                        point_with_citations = _append_citation_markers(point, resp, agent_name)
                         markdown_sections.append(f"- {point_with_citations}")
 
         # Research Evidence & Literature  
-        if capability_groups["research"]:
+        if agent_groups["research"]:
             markdown_sections.append("\n## Research Evidence & Literature")
-            for cap, resp in capability_groups["research"]:
+            for agent_name, resp in agent_groups["research"]:
                 content = _strip_leading_tag(resp.response_str)
                 key_points = _extract_key_points(content)
                 if key_points:
                     for point in key_points:
-                        point_with_citations = _append_citation_markers(point, resp, cap)
+                        point_with_citations = _append_citation_markers(point, resp, agent_name)
                         markdown_sections.append(f"- {point_with_citations}")
 
         # Current Developments
-        if capability_groups["current"]:
+        if agent_groups["current"]:
             markdown_sections.append("\n## Current Developments")
-            for cap, resp in capability_groups["current"]:
+            for agent_name, resp in agent_groups["current"]:
                 content = _strip_leading_tag(resp.response_str)
                 key_points = _extract_key_points(content)
                 if key_points:
                     for point in key_points:
-                        point_with_citations = _append_citation_markers(point, resp, cap)
+                        point_with_citations = _append_citation_markers(point, resp, agent_name)
                         markdown_sections.append(f"- {point_with_citations}")
 
         # Document Analysis
-        if capability_groups["analysis"]:
+        if agent_groups["analysis"]:
             markdown_sections.append("\n## Document Analysis")
-            for cap, resp in capability_groups["analysis"]:
+            for agent_name, resp in agent_groups["analysis"]:
                 content = _strip_leading_tag(resp.response_str)
                 key_points = _extract_key_points(content)
                 if key_points:
                     for point in key_points:
-                        point_with_citations = _append_citation_markers(point, resp, cap)
+                        point_with_citations = _append_citation_markers(point, resp, agent_name)
                         markdown_sections.append(f"- {point_with_citations}")
 
         # Additional Considerations
-        if capability_groups["other"]:
+        if agent_groups["other"]:
             markdown_sections.append("\n## Additional Considerations")
-            for cap, resp in capability_groups["other"]:
-                if cap != "chitchat":  # Skip chitchat content
+            for agent_name, resp in agent_groups["other"]:
+                if agent_name != "chitchat":  # Skip chitchat content
                     content = _strip_leading_tag(resp.response_str)
                     key_points = _extract_key_points(content)
                     if key_points:
                         for point in key_points:
-                            point_with_citations = _append_citation_markers(point, resp, cap)
+                            point_with_citations = _append_citation_markers(point, resp, agent_name)
                             markdown_sections.append(f"- {point_with_citations}")
 
         # Key Recommendations (from highest-scoring agents)
         high_scoring_agents = [cap for cap, judgment in judgments.items() if judgment.overall_score >= 0.7]
         if high_scoring_agents and len(outputs) > 1:
             markdown_sections.append("\n## Key Recommendations")
-            for cap in high_scoring_agents[:2]:  # Top 2 performers
+            for agent_name in high_scoring_agents[:2]:  # Top 2 performers
                 for agent_cap, resp in outputs:
-                    if agent_cap == cap:
+                    if agent_cap == agent_name:
                         content = _strip_leading_tag(resp.response_str)
                         # Extract recommendation-style sentences
                         sentences = re.split(r"(?<=[.!?])\s+", content.strip())
                         recommendations = [s for s in sentences if any(word in s.lower() for word in 
                                          ["recommend", "should", "consider", "advised", "suggested"])]
                         for rec in recommendations[:2]:  # Limit recommendations
-                            rec_with_citations = _append_citation_markers(rec.strip(), resp, cap)
+                            rec_with_citations = _append_citation_markers(rec.strip(), resp, agent_name)
                             markdown_sections.append(f"- **{rec_with_citations}**")
                         break
 
@@ -908,13 +672,13 @@ class BioHALOAgent(BaseAgent):
         # Build compact per-subagent summary: "cap 0.82 (N sources)"
         per_agent_summaries: List[str] = []
         agent_scores = []
-        for cap, resp in outputs:
-            j = judgments.get(cap)
+        for agent_name, resp in outputs:
+            j = judgments.get(agent_name)
             if not j:
                 continue
             num_sources = len(getattr(resp, "citations", []) or [])
-            per_agent_summaries.append(f"{cap} {j.overall_score:.2f} ({num_sources} sources)")
-            agent_scores.append(f"{cap}: {j.overall_score:.2f}")
+            per_agent_summaries.append(f"{agent_name} {j.overall_score:.2f} ({num_sources} sources)")
+            agent_scores.append(f"{agent_name}: {j.overall_score:.2f}")
 
         if agent_scores:
             judge_lines.append(f"Agent Scores: {', '.join(agent_scores)}")
@@ -928,14 +692,14 @@ class BioHALOAgent(BaseAgent):
 
         # Per-subagent blocks: Response, Score, Justification, Citations  
         max_snippet_len = 800  # Increased from 400 to show more complete responses
-        for cap, resp in outputs:
-            j = judgments.get(cap)
+        for agent_name, resp in outputs:
+            j = judgments.get(agent_name)
             if not j:
                 continue
             short_just = _first_sentence(j.prose_summary)
             # sources used in composed answer
-            used_src_count = len(used_per_capability.get(cap, set()))
-            if cap == "llama_rag" and used_src_count == 0 and getattr(resp, "citations", None):
+            used_src_count = len(used_per_capability.get(agent_name, set()))
+            if agent_name == "llama_rag" and used_src_count == 0 and getattr(resp, "citations", None):
                 used_src_count = len(resp.citations)
             
             # Full response text (not truncated for judge display)
@@ -945,7 +709,7 @@ class BioHALOAgent(BaseAgent):
             else:
                 snippet = full_response
             
-            judge_lines.append(f"- {cap}:")
+            judge_lines.append(f"- {agent_name}:")
             judge_lines.append(f"  - Response: {snippet}")
             judge_lines.append(f"  - Score: {j.overall_score:.2f}")
             judge_lines.append(f"  - Justification: {short_just} (with {used_src_count} sources)")
@@ -1088,7 +852,7 @@ class BioHALOAgent(BaseAgent):
                         judge_lines.append(f"    {i}. {' '.join(citation_parts)}")
                         
                     except Exception as e:
-                        logger.warning(f"Error processing citation {i} for {cap}: {e}")
+                        logger.warning(f"Error processing citation {i} for {agent_name}: {e}")
                         judge_lines.append(f"    {i}. [Citation processing error]")
             else:
                 judge_lines.append(f"  - Citations: None")
@@ -1097,7 +861,7 @@ class BioHALOAgent(BaseAgent):
         return AgentResponse(
             response_str=final_text,
             citations=citations,
-            judge_response="\n".join(judge_lines),
+            judgement="\n".join(judge_lines),
             route=AgentRouteType.REASONING,
         )
 
@@ -1111,12 +875,12 @@ class BioHALOAgent(BaseAgent):
 
         # Respect test overrides that monkeypatch _plan(); otherwise use async planner
         try:
-            capabilities = self._plan(query_str)
+            subagents = self._plan(query_str)
         except Exception:
-            capabilities = []
-        if not isinstance(capabilities, list) or not capabilities:
-            capabilities = await self._plan_async(query_str)
-        roles = self._select_roles(capabilities)
+            subagents = []
+        if not isinstance(subagents, list) or not subagents:
+            subagents = await self._plan_async(query_str)
+        roles = self._select_roles(subagents)
         outputs = await self._execute_roles(query_str, roles)
         judgment_summary = await self._judge(outputs, query_str)
         return self._synthesize(outputs, judgment_summary)
@@ -1135,7 +899,7 @@ async def main():
     resp = await agent.achat(query)
     print(f">> BioHALOAgent response: {resp.response_str}")
     print(f">> # citations: {len(resp.citations)}")
-    print(f">> Judge response: {resp.judge_response}")
+    print(f">> Judge response: {resp.judgement}")
 
     # -----Test 2------
     query = "For elderly patients who have complex history with variety of health " +\
@@ -1144,7 +908,7 @@ async def main():
     resp = await agent.achat(query)
     print(f">> BioHALOAgent response: {resp.response_str}")
     print(f">> # citations: {len(resp.citations)}")
-    print(f">> Judge response: {resp.judge_response}")
+    print(f">> Judge response: {resp.judgement}")
     await agent.stop()
         
 if __name__ == "__main__":

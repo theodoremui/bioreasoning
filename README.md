@@ -233,12 +233,12 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 - BioMCP (biomedical tools):
 ```bash
-./scripts/run-biomcp-server.sh
+./scripts/run-server-biomcp.sh
 ```
 
 - DocMCP (LlamaCloud index / documents):
 ```bash
-./scripts/run-docs-server.sh
+./scripts/run-server-docs.sh
 ```
 
 Environment variables (optional overrides):
@@ -247,7 +247,7 @@ Environment variables (optional overrides):
 
 ### 2) Start the Knowledge Client (Streamlit)
 ```bash
-./scripts/run-docs-client.sh
+./scripts/run-client.sh
 ```
 - Runs the Streamlit app (`frontend/app.py`)
 - Opens the chat interface at `http://localhost:8501`
@@ -270,11 +270,11 @@ python -m bioagents.agents.bio_router
 
 - **BioMCP Server**: exposes biomedical tools (variants, PubMed, biomedical data)
   - URL: `BIOMCP_SERVER_URL` (default `http://localhost:8132/mcp/`)
-  - Scripts: `scripts/run-biomcp-server.sh`
+  - Scripts: `scripts/run-server-biomcp.sh`
 
 - **DocMCP Server**: exposes document tools backed by LlamaCloud index
   - URL: `DOCMCP_SERVER_URL` (default `http://localhost:8130/mcp/`)
-  - Scripts: `scripts/run-docs-server.sh`
+  - Scripts: `scripts/run-server-docs.sh`
 
 Both servers speak the MCP streamable HTTP protocol consumed by the agents.
 
@@ -542,10 +542,13 @@ docker-compose exec -T postgres psql -U llama notebookllama < backup.sql
 - Choose "interview" style, "friendly" tone, and set speakers
 - Click the button and listen to the result
 
-### 4. Chat Routing Behavior
-- The Streamlit chat page (`frontend/pages/1_Chat.py`) invokes the Router agent.
-- The router uses tools (route_biomcp, route_llamarag, route_websearch, route_chitchat) to choose one path.
-- For biomedical queries, it picks the BioMCP Agent; for document/RAG, the DocMCP Agent; otherwise websearch or chitchat.
+### 4. Chat Orchestration & Routing
+- The Streamlit chat page (`frontend/pages/1_Chat.py`) includes an Orchestrator selector in the sidebar. Options: `halo`, `router`, `graph`, `llamarag`, `llamamcp`, `biomcp`, `web`, `chitchat` (see `frontend/components/session_manager.py`).
+- When `router` is selected, the Router agent uses tool choices (route_biomcp, route_llamarag, route_websearch, route_chitchat) to choose exactly one specialized sub-agent.
+- When `halo` is selected, the HALO orchestrator plans capabilities, runs multiple specialists in parallel, judges their responses, and synthesizes a single answer.
+- Assistant messages may include:
+  - a Sources expander (citations with titles, optional pages/snippets, and scores)
+  - a Judge expander (structured evaluation with overall score and per-subagent notes)
 
 ```mermaid
 flowchart TD
@@ -561,7 +564,7 @@ flowchart TD
 ## Troubleshooting
 
 ### General Issues
-- **Server/Client not running**: Ensure both `run-docs-server.sh` and `run-docs-client.sh` are running in separate terminals
+- **Server/Client not running**: Ensure both `run-server-docs.sh` and `run-client.sh` are running in separate terminals
 - **Port conflicts**: Default ports are 8501 (client) and 8131 (server); change if needed
 - **Missing dependencies**: Run `uv sync` and ensure your virtual environment is activated
 - **API key issues**: Check your `.env` file and ensure `OPENAI_API_KEY` is set
@@ -615,8 +618,10 @@ bioreasoning/
 ├── frontend/              # Streamlit frontend
 │   ├── app.py             # Main entry point
 │   └── pages/             # Multi-page app modules
-├── run-docs-server.sh
-├── run-docs-client.sh
+├── scripts/
+│   ├── run-server-docs.sh
+│   ├── run-server-biomcp.sh
+│   └── run-client.sh
 ├── pyproject.toml         # Dependencies and project config
 └── README.md
 ```
@@ -633,7 +638,7 @@ bioreasoning/
 - See the `docs/` folder for:
   - **[Infrastructure Quick Start](docs/infrastructure-quickstart.md)**: Get up and running quickly
   - **[Infrastructure Documentation](docs/infrastructure.md)**: Comprehensive infrastructure guide
-  - **[Provenance & Citations](docs/provenance_and_citations.md)**: How triplet sources and citations work
+  - **[Provenance & Citations](docs/knowledge_provenance.md)**: How triplet sources and citations work
   - **Architecture**: Detailed diagrams and flowcharts
   - **Processing**: Step-by-step document, mindmap, and podcast flows
   - **Troubleshooting**: Common issues and solutions

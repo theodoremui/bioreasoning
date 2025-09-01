@@ -6,7 +6,7 @@ Reference: HALO framework – Hierarchical Autonomous Logic-Oriented Orchestrati
 
 ## Goals
 - Invoke any subset of specialists per query (parallel/sequential as needed)
-- Provide critique via `judge_response` and synthesize a single answer
+- Provide critique via `judgement` and synthesize a single answer
 - Keep extensible: heuristics can be replaced by LLM planners/RL policies
 - Follow SOLID/DRY and Occam’s Razor – clear, minimal abstractions
 
@@ -74,20 +74,13 @@ class AgentJudgment(BaseModel):
 
 Judging prompt requires returning only JSON and uses `response_format={"type": "json_object"}` for reliability. If the LLM judging fails, a deterministic fallback computes a conservative score.
 
-### Synthesis, Inline Citations, and Evaluation Block
+### Synthesis, Inline Citations, and Judge Summary
 - Prioritize content: graph > rag > biomcp > llama_mcp > web > chitchat
 - Weave unique sentences from secondaries
 - Assign inline citation indices lazily at the point of use; only used sources are retained in `AgentResponse.citations`
-- Append a structured evaluation block at the end:
-
-Example tail section:
-```
-Overall Score: 0.90
-Assessment: Best performing agent: web (score: 0.96); Lowest performing agent: rag (score: 0.80); High-quality responses from: biomcp, rag, web
-- graph: 0.88 - Strong, well-grounded summary. (with 2 sources)
-- rag: 0.80 - Useful but could be more specific. (with 1 sources)
-- web: 0.96 - Comprehensive and clear with strong grounding. (with 3 sources)
-```
+- Provide a structured judge summary via `AgentResponse.judgement` (not appended inside the main response string). The Streamlit UI renders this inside a “Judge” expander with:
+  - Overall score and 2-3 sentence assessment
+  - Per-subagent lines like `- graph: ...`, `- web: ...`
 
 ### Testing Strategy
 - Unit tests for planning, selection, judging (LLM and fallback), and synthesis

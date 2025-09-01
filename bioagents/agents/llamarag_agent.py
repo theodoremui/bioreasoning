@@ -172,13 +172,13 @@ class LlamaRAGAgent(BaseAgent):
                 return AgentResponse(
                     response_str=response.response,
                     citations=sources,
-                    judge_response="",
+                    judgement="",
                     route=AgentRouteType.LLAMARAG,
                 )
             return AgentResponse(
                 response_str=str(response),
                 citations=[],
-                judge_response="",
+                judgement="",
                 route=AgentRouteType.LLAMARAG,
             )
         except Exception as e:
