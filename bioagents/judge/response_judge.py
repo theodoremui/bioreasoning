@@ -23,6 +23,7 @@ from loguru import logger
 from bioagents.models.llms import LLM
 from .interfaces import ResponseJudgeInterface, JudgmentError
 from .models import AgentJudgment, JudgmentScores, JudgmentJustifications
+from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Avoid runtime circular import; only import for type checking
 if TYPE_CHECKING:
@@ -93,10 +94,12 @@ class ResponseJudge(ResponseJudgeInterface):
 
     def __init__(
         self, 
-        model_name: str = LLM.GPT_4_1_MINI, 
-        timeout: int = 15,
-        temperature: float = 0.1,
-        enable_schema_mode: bool = True
+        model_name: str = LLM.GPT_4_1, 
+        timeout: int = 60,
+        temperature: float = 0.01,
+        enable_schema_mode: bool = True,
+        max_citations_in_prompt: int = 6,
+        max_response_chars_in_prompt: int = 1024,
     ) -> None:
         """Initialize the response judge with configurable parameters.
         
@@ -105,12 +108,16 @@ class ResponseJudge(ResponseJudgeInterface):
             timeout: Timeout in seconds for LLM requests.
             temperature: Sampling temperature for LLM (0.0-2.0, lower = more deterministic).
             enable_schema_mode: Whether to use JSON schema constraints when available.
+            max_citations_in_prompt: Maximum number of citations to include in the prompt.
+            max_response_chars_in_prompt: Maximum number of characters to include in the prompt.
         """
         self._model_name = model_name
         self._timeout = timeout
         self._temperature = temperature
         self._enable_schema_mode = enable_schema_mode
         self._llm = LLM(model_name=model_name, timeout=timeout)
+        self._max_citations_in_prompt = max_citations_in_prompt
+        self._max_response_chars_in_prompt = max_response_chars_in_prompt
         
         logger.info(
             f"ResponseJudge initialized: model={model_name}, timeout={timeout}s, "
@@ -152,24 +159,27 @@ class ResponseJudge(ResponseJudgeInterface):
             JudgmentError: When critical evaluation failures occur.
         """
         try:
-            # Prepare citations summary for evaluation context
-            citations_text = self._format_citations(response.citations)
+            # Prepare citations summary for evaluation context (limited)
+            limited_citations = (response.citations or [])[: self._max_citations_in_prompt]
+            citations_text = self._format_citations(limited_citations)
             
             # Format context information
             context_info = self._format_context(context) if context else "None provided"
             
-            # Format the judgment prompt
+            # Format the judgment prompt (limit response length)
+            display_response = (response.response_str or "")[: self._max_response_chars_in_prompt]
             prompt = JUDGMENT_PROMPT.format(
                 query=query,
                 agent_name=agent_name,
-                response=response.response_str or "No response generated",
+                response=display_response or "No response generated",
                 citations=citations_text,
                 context_info=context_info
             )
             
             # Attempt structured LLM evaluation
             try:
-                judgment_data = await self._get_structured_judgment(prompt)
+                use_schema = self._should_use_schema_mode()
+                judgment_data = await self._get_structured_judgment(prompt, use_schema)
                 # Ensure required fields introduced in AgentJudgment are present
                 if not isinstance(judgment_data, dict):
                     judgment_data = {}
@@ -198,7 +208,7 @@ class ResponseJudge(ResponseJudgeInterface):
             logger.error(f"{error_msg}: {e}")
             raise JudgmentError(error_msg, agent_name, e)
 
-    async def _get_structured_judgment(self, prompt: str) -> Dict[str, Any]:
+    async def _get_structured_judgment(self, prompt: str, use_schema: bool) -> Dict[str, Any]:
         """Get structured judgment from LLM with schema validation when possible.
         
         Args:
@@ -210,14 +220,13 @@ class ResponseJudge(ResponseJudgeInterface):
         Raises:
             Exception: When LLM request fails.
         """
-        schema = AgentJudgment.model_json_schema()
+        schema = self._minimal_schema()
         
-        # Try JSON schema mode first if enabled
-        if self._enable_schema_mode:
+        # Try JSON schema mode first if enabled and allowed for model
+        if use_schema:
             try:
-                content = await self._llm.achat_completion(
+                content = await self._achat_with_retry(
                     prompt,
-                    temperature=self._temperature,
                     response_format={
                         "type": "json_schema",
                         "json_schema": {"name": "AgentJudgment", "schema": schema},
@@ -229,12 +238,62 @@ class ResponseJudge(ResponseJudgeInterface):
 
         # Fallback to JSON object mode
         schema_prompt = prompt + f"\n\nReturn ONLY a JSON object conforming to this schema:\n{json.dumps(schema)}"
-        content = await self._llm.achat_completion(
+        content = await self._achat_with_retry(
             schema_prompt,
-            temperature=self._temperature,
             response_format={"type": "json_object"},
         )
         return json.loads((content or "{}").strip())
+
+    def _minimal_schema(self) -> Dict[str, Any]:
+        """Return a compact JSON schema sufficient for AgentJudgment validation."""
+        score_fields = [
+            "accuracy",
+            "completeness",
+            "groundedness",
+            "professional_tone",
+            "clarity_coherence",
+            "relevance",
+            "usefulness",
+        ]
+        return {
+            "type": "object",
+            "properties": {
+                "prose_summary": {"type": "string"},
+                "scores": {
+                    "type": "object",
+                    "properties": {f: {"type": "number"} for f in score_fields},
+                    "required": score_fields,
+                },
+                "overall_score": {"type": "number"},
+                "justifications": {
+                    "type": "object",
+                    "properties": {f: {"type": "string"} for f in score_fields},
+                    "required": score_fields,
+                },
+            },
+            "required": ["prose_summary", "scores", "overall_score", "justifications"],
+            "additionalProperties": True,
+        }
+
+    def _should_use_schema_mode(self) -> bool:
+        """Gate JSON schema mode based on settings (tests expect it when enabled)."""
+        return bool(self._enable_schema_mode)
+
+    async def _achat_with_retry(self, prompt: str, response_format: Dict[str, Any]) -> str:
+        """LLM achat with short retry and exponential backoff."""
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(2),
+            wait=wait_exponential(min=0.2, max=1.0),
+            retry=retry_if_exception_type(Exception),
+            reraise=True,
+        ):
+            with attempt:
+                return await self._llm.achat_completion(
+                    prompt,
+                    temperature=self._temperature,
+                    response_format=response_format,
+                )
+        return "{}"
 
     def _validate_and_normalize_judgment(self, raw_data: Dict[str, Any]) -> AgentJudgment:
         """Validate and normalize raw LLM judgment data.

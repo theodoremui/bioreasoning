@@ -14,6 +14,7 @@ A comprehensive biomedical reasoning agent system that intelligently routes quer
 - [System Architecture](#system-architecture)
 - [Installation](#installation)
 - [Running the System](#running-the-system)
+- [FastAPI Server](#fastapi-server)
 - [Feature Walkthrough](#feature-walkthrough)
 - [Troubleshooting](#troubleshooting)
 - [Development & Advanced Usage](#development--advanced-usage)
@@ -253,6 +254,68 @@ Environment variables (optional overrides):
 - Opens the chat interface at `http://localhost:8501`
 
 > Ensure both servers and the client are running for full functionality.
+
+## FastAPI Server
+
+The project includes a modular FastAPI server that exposes the agents via simple HTTP endpoints. It mirrors the Streamlit chat functionality for programmatic access and integrations.
+
+### Quick start
+```bash
+# Option A: Python module
+python -m server.run
+
+# Option B: Uvicorn
+uvicorn server.api:create_app --host 0.0.0.0 --port 9000
+```
+
+The server exposes:
+- `GET /health` → `{ "status": "ok" }`
+- `POST /{agent_name}/chat` → JSON chat API
+
+Example:
+```bash
+curl -s \
+  -X POST http://localhost:9000/router/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "hello"}' | jq
+```
+
+### Configuration
+- Environment variables in project root `.env` (loaded automatically):
+  - `SERVER_HOST` (default `0.0.0.0`)
+  - `SERVER_PORT` (default `8228`)
+  - `SERVER_LOG_LEVEL` (default `info`)
+  - `SERVER_CONFIG_PATH` (optional explicit YAML path)
+- YAML file at project root `config/server.yaml` (auto-detected):
+```yaml
+server:
+  host: 0.0.0.0
+  port: 8228
+  log_level: info
+
+# Optional agent overrides; map key to "module:Class"
+agents:
+  # custom_graph: bioagents.agents.graph_agent:GraphAgent
+```
+
+Agent names supported out-of-the-box: `halo`, `router`, `graph`, `llamamcp`, `llamarag`, `web`. You can add/override via the YAML `agents:` section.
+
+### API schema
+Request body:
+```json
+{ "query": "your prompt" }
+```
+Response body:
+```json
+{
+  "response": "...",
+  "citations": [{"title": "...", "url": "...", "score": 0.0 }],
+  "judgement": "...",
+  "route": "graph|biomcp|chitchat|llamarag|llamamcp|websearch|reasoning"
+}
+```
+
+See the detailed guide: [docs/server_api.md](docs/server_api.md)
 
 ### 3) Quick smoke tests (CLI)
 - BioMCP Agent smoke test:
