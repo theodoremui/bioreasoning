@@ -14,6 +14,7 @@ load_dotenv(find_dotenv())
 
 import asyncio
 from abc import ABC, abstractmethod
+import re
 
 from agents import Runner, RunResult, gen_trace_id, trace
 
@@ -84,6 +85,21 @@ class BaseAgent(ABC):
             judgement=str(judgement) if judgement is not None else "",
             route=route,
         )
+
+    async def simple_achat(self, query_str: str) -> str:
+        output_str = ""
+        try:
+            response: AgentResponse = await self.achat(query_str)
+            output_str = response.response_str
+            judgement_str: AgentJudgment = response.judgement
+            m = re.search(
+                r"(?:\*\*)?\s*Score\s*(?:\*\*)?\s*:\s*([0-9]+(?:\.[0-9]+)?)",
+                judgement_str, re.IGNORECASE)
+            score_str = m.group(1) if m else ""
+            output_str = response.response_str + "\tScore: " + score_str
+        except Exception as e:
+            logger.error(f"Error getting score from judgement: {e}")
+        return output_str
 
     async def achat(self, query_str: str) -> AgentResponse:
         if self._agent is None:

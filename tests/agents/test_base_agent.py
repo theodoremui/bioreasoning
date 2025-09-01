@@ -251,3 +251,203 @@ class TestBaseAgent:
         for i, citation in enumerate(response.citations):
             assert citation.url == f"https://example{i}.com"
             assert citation.title == f"Article {i}"
+
+    @pytest.mark.asyncio
+    async def test_simple_achat_success(self):
+        """Test simple_achat method with successful response."""
+        agent = ConcreteBaseAgent(name="TestAgent")
+        
+        # Mock the achat method to return a response with judgement
+        mock_response = AgentResponse(
+            response_str="Test response",
+            citations=[],
+            judgement="**Score**: 0.85\n**Assessment**: Good response",
+            route=AgentRouteType.REASONING
+        )
+        
+        with patch.object(agent, 'achat', return_value=mock_response):
+            result = await agent.simple_achat("Test query")
+            
+            expected = "Test response\tScore: 0.85"
+            assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_simple_achat_no_score(self):
+        """Test simple_achat method when judgement has no score."""
+        agent = ConcreteBaseAgent(name="TestAgent")
+        
+        # Mock the achat method to return a response without score
+        mock_response = AgentResponse(
+            response_str="Test response",
+            citations=[],
+            judgement="No score in this judgement",
+            route=AgentRouteType.REASONING
+        )
+        
+        with patch.object(agent, 'achat', return_value=mock_response):
+            result = await agent.simple_achat("Test query")
+            
+            expected = "Test response\tScore: "
+            assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_simple_achat_different_score_formats(self):
+        """Test simple_achat method with different score formats."""
+        agent = ConcreteBaseAgent(name="TestAgent")
+        
+        test_cases = [
+            ("**Score**: 0.75", "0.75"),
+            ("Score: 0.90", "0.90"),
+            ("**Score**: 1.0", "1.0"),
+            ("Score: 0", "0"),
+            ("**Score**: 0.123", "0.123"),
+        ]
+        
+        for judgement, expected_score in test_cases:
+            mock_response = AgentResponse(
+                response_str="Test response",
+                citations=[],
+                judgement=judgement,
+                route=AgentRouteType.REASONING
+            )
+            
+            with patch.object(agent, 'achat', return_value=mock_response):
+                result = await agent.simple_achat("Test query")
+                
+                expected = f"Test response\tScore: {expected_score}"
+                assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_simple_achat_exception_handling(self):
+        """Test simple_achat method handles exceptions gracefully."""
+        agent = ConcreteBaseAgent(name="TestAgent")
+        
+        # Mock achat to raise an exception
+        with patch.object(agent, 'achat', side_effect=Exception("Test error")):
+            with patch('bioagents.agents.base_agent.logger') as mock_logger:
+                result = await agent.simple_achat("Test query")
+                
+                # Should return empty string when exception occurs
+                assert result == ""
+                mock_logger.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_simple_achat_with_undefined_response(self):
+        """Test simple_achat method when response is undefined after exception."""
+        agent = ConcreteBaseAgent(name="TestAgent")
+        
+        # Mock achat to raise an exception and response to be undefined
+        with patch.object(agent, 'achat', side_effect=Exception("Test error")):
+            with patch('bioagents.agents.base_agent.logger') as mock_logger:
+                # This should not cause an error even if response is undefined
+                result = await agent.simple_achat("Test query")
+                
+                assert result == ""
+                mock_logger.error.assert_called_once()
+
+    def test_construct_response_duplicate_urls(self):
+        """Test _construct_response filters duplicate URLs."""
+        agent = ConcreteBaseAgent(name="TestAgent")
+
+        mock_run_result = MagicMock()
+        mock_run_result.final_output = "Test response"
+
+        # Create mock items with duplicate URLs
+        mock_annotation1 = MagicMock()
+        mock_annotation1.type = "url_citation"
+        mock_annotation1.url = "https://example.com"
+        mock_annotation1.title = "Article 1"
+        mock_annotation1.start_index = 0
+        mock_annotation1.end_index = 5
+
+        mock_annotation2 = MagicMock()
+        mock_annotation2.type = "url_citation"
+        mock_annotation2.url = "https://example.com"  # Duplicate URL
+        mock_annotation2.title = "Article 2"
+        mock_annotation2.start_index = 0
+        mock_annotation2.end_index = 5
+
+        mock_content1 = MagicMock()
+        mock_content1.annotations = [mock_annotation1]
+        mock_content1.text = "Text 1"
+
+        mock_content2 = MagicMock()
+        mock_content2.annotations = [mock_annotation2]
+        mock_content2.text = "Text 2"
+
+        mock_item1 = MagicMock()
+        mock_item1.type = "message_output_item"
+        mock_item1.raw_item.content = [mock_content1]
+
+        mock_item2 = MagicMock()
+        mock_item2.type = "message_output_item"
+        mock_item2.raw_item.content = [mock_content2]
+
+        mock_run_result.new_items = [mock_item1, mock_item2]
+
+        response = agent._construct_response(mock_run_result)
+
+        # Should only have one citation despite duplicate URLs
+        assert len(response.citations) == 1
+        assert response.citations[0].url == "https://example.com"
+        assert response.citations[0].title == "Article 1"  # First occurrence
+
+    def test_construct_response_non_citation_annotations(self):
+        """Test _construct_response ignores non-citation annotations."""
+        agent = ConcreteBaseAgent(name="TestAgent")
+
+        mock_run_result = MagicMock()
+        mock_run_result.final_output = "Test response"
+
+        # Create mock annotation that's not a URL citation
+        mock_annotation = MagicMock()
+        mock_annotation.type = "other_annotation"
+        mock_annotation.url = "https://example.com"
+        mock_annotation.title = "Article"
+        mock_annotation.start_index = 0
+        mock_annotation.end_index = 5
+
+        mock_content = MagicMock()
+        mock_content.annotations = [mock_annotation]
+        mock_content.text = "Text"
+
+        mock_item = MagicMock()
+        mock_item.type = "message_output_item"
+        mock_item.raw_item.content = [mock_content]
+
+        mock_run_result.new_items = [mock_item]
+
+        response = agent._construct_response(mock_run_result)
+
+        # Should have no citations since annotation type is not url_citation
+        assert len(response.citations) == 0
+
+    def test_construct_response_missing_annotation_attributes(self):
+        """Test _construct_response handles missing annotation attributes."""
+        agent = ConcreteBaseAgent(name="TestAgent")
+
+        mock_run_result = MagicMock()
+        mock_run_result.final_output = "Test response"
+
+        # Create mock annotation with missing URL
+        mock_annotation = MagicMock()
+        mock_annotation.type = "url_citation"
+        mock_annotation.url = None  # Missing URL
+        mock_annotation.title = "Article"
+        mock_annotation.start_index = 0
+        mock_annotation.end_index = 5
+
+        mock_content = MagicMock()
+        mock_content.annotations = [mock_annotation]
+        mock_content.text = "Text"
+
+        mock_item = MagicMock()
+        mock_item.type = "message_output_item"
+        mock_item.raw_item.content = [mock_content]
+
+        mock_run_result.new_items = [mock_item]
+
+        response = agent._construct_response(mock_run_result)
+
+        # Should have no citations since URL is missing
+        assert len(response.citations) == 0

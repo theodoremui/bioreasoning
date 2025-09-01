@@ -18,6 +18,14 @@
             "jinja": true
         },
         {
+            "name": "server.run",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "server.run",
+            "args": [],
+            "jinja": true
+        },
+        {
             "name": "bioconcierge",
             "type": "debugpy",
             "request": "launch",
