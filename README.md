@@ -270,15 +270,8 @@ uvicorn server.api:create_app --host 0.0.0.0 --port 9000
 
 The server exposes:
 - `GET /health` → `{ "status": "ok" }`
-- `POST /{agent_name}/chat` → JSON chat API
-
-Example:
-```bash
-curl -s \
-  -X POST http://localhost:9000/router/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"query": "hello"}' | jq
-```
+- `POST /{agent_name}/chat` → Full JSON chat API with citations and metadata
+- `POST /{agent_name}/simplechat` → Plain text response only
 
 ### Configuration
 - Environment variables in project root `.env` (loaded automatically):
@@ -300,19 +293,152 @@ agents:
 
 Agent names supported out-of-the-box: `halo`, `router`, `graph`, `llamamcp`, `llamarag`, `web`. You can add/override via the YAML `agents:` section.
 
-### API schema
-Request body:
-```json
-{ "query": "your prompt" }
+### API Endpoints
+
+#### 1. Health Check
+```bash
+curl http://localhost:8228/health
+# Response: {"status": "ok"}
 ```
-Response body:
+
+#### 2. Full Chat API (`/chat`)
+Returns complete response with citations, judgment, and routing information.
+
+**Request:**
+```json
+{ "query": "What is HER2+ breast cancer treatment?" }
+```
+
+**Response:**
 ```json
 {
-  "response": "...",
-  "citations": [{"title": "...", "url": "...", "score": 0.0 }],
-  "judgement": "...",
-  "route": "graph|biomcp|chitchat|llamarag|llamamcp|websearch|reasoning"
+  "response": "HER2+ breast cancer treatment typically involves...",
+  "citations": [
+    {
+      "title": "NCCN Breast Cancer Guidelines",
+      "url": "https://example.com/nccn",
+      "score": 0.95
+    }
+  ],
+  "judgement": "**Score**: 0.87\n**Assessment**: Comprehensive response with current guidelines",
+  "route": "graph"
 }
+```
+
+**Example:**
+```bash
+curl -X POST http://localhost:8228/router/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is HER2+ breast cancer treatment?"}' | jq
+```
+
+#### 3. Simple Chat API (`/simplechat`)
+Returns only the response text, perfect for simple integrations.
+
+**Request:**
+```json
+{ "query": "What is HER2+ breast cancer treatment?" }
+```
+
+**Response:**
+```
+HER2+ breast cancer treatment typically involves targeted therapy with trastuzumab (Herceptin) combined with chemotherapy. The treatment approach depends on the stage of cancer and may include surgery, radiation therapy, and additional targeted therapies like pertuzumab or ado-trastuzumab emtansine (T-DM1).
+```
+
+**Example:**
+```bash
+curl -X POST http://localhost:8228/router/simplechat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is HER2+ breast cancer treatment?"}'
+```
+
+### Key Differences
+
+| Feature | `/chat` | `/simplechat` |
+|---------|---------|---------------|
+| **Response Format** | JSON with metadata | Plain text |
+| **Citations** | ✅ Included | ❌ Not included |
+| **Judgment/Score** | ✅ Included | ❌ Not included |
+| **Route Information** | ✅ Included | ❌ Not included |
+| **Use Case** | Full analysis, debugging | Simple text extraction |
+| **Response Size** | Larger (structured) | Smaller (text only) |
+
+### Available Agents
+
+| Agent | Description | Best For |
+|-------|-------------|----------|
+| `router` | Intelligent query routing | General queries, automatic agent selection |
+| `halo` | Multi-agent orchestration | Complex queries requiring multiple perspectives |
+| `graph` | Knowledge graph queries | NCCN guidelines, medical knowledge |
+| `web` | Web search | Current events, real-time information |
+| `llamamcp` | LlamaCloud MCP tools | Document analysis, RAG queries |
+| `llamarag` | LlamaCloud RAG | Document-based questions |
+
+### Complete Examples
+
+**Router Agent (Recommended for most queries):**
+```bash
+# Full response with metadata
+curl -X POST http://localhost:8228/router/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What are the latest breast cancer treatment guidelines?"}' | jq
+
+# Simple text response
+curl -X POST http://localhost:8228/router/simplechat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What are the latest breast cancer treatment guidelines?"}'
+```
+
+**Graph Agent (For medical knowledge):**
+```bash
+# Full response
+curl -X POST http://localhost:8228/graph/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "HER2+ stage II treatment options"}' | jq
+
+# Simple response
+curl -X POST http://localhost:8228/graph/simplechat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "HER2+ stage II treatment options"}'
+```
+
+**Web Agent (For current information):**
+```bash
+# Full response
+curl -X POST http://localhost:8228/web/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Latest FDA approvals for breast cancer drugs"}' | jq
+
+# Simple response
+curl -X POST http://localhost:8228/web/simplechat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Latest FDA approvals for breast cancer drugs"}'
+```
+
+**HALO Agent (For complex multi-perspective queries):**
+```bash
+# Full response with multiple agent perspectives
+curl -X POST http://localhost:8228/halo/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Compare different breast cancer treatment approaches"}' | jq
+```
+
+### Error Handling
+
+**Unknown Agent (404):**
+```bash
+curl -X POST http://localhost:8228/unknown/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "test"}'
+# Response: {"detail": "Unknown agent 'unknown'"}
+```
+
+**Invalid Request (422):**
+```bash
+curl -X POST http://localhost:8228/router/chat \
+  -H "Content-Type: application/json" \
+  -d '{"invalid": "field"}'
+# Response: {"detail": [{"type": "missing", "loc": ["body", "query"], "msg": "Field required"}]}
 ```
 
 See the detailed guide: [docs/server_api.md](docs/server_api.md)
