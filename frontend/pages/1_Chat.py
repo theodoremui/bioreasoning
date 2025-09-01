@@ -128,10 +128,10 @@ class ChatPage:
                 # Display judge section if available for assistant messages
                 if (
                     message["role"] == "assistant"
-                    and "judge_response" in message
-                    and message["judge_response"]
+                    and "judgement" in message
+                    and message["judgement"]
                 ):
-                    self._render_judge(message["judge_response"])
+                    self._render_judge(message["judgement"])
 
     def _render_citations(self, sources: list) -> None:
         """
@@ -234,8 +234,8 @@ class ChatPage:
                         self._render_citations(agent_response.citations)
 
                     # Display judge block if available
-                    if getattr(agent_response, "judge_response", None):
-                        self._render_judge(agent_response.judge_response)
+                    if getattr(agent_response, "judgement", None):
+                        self._render_judge(agent_response.judgement)
 
                     # Add assistant message to history
                     SessionManager.add_message(
@@ -243,7 +243,7 @@ class ChatPage:
                         agent_response.response_str,
                         citations=agent_response.citations,
                         route=getattr(agent_response, "route", None),
-                        judge_response=getattr(agent_response, "judge_response", ""),
+                        judgement=getattr(agent_response, "judgement", ""),
                     )
 
                 except Exception as e:

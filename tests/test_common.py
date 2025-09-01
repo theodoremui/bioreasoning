@@ -46,7 +46,7 @@ class TestAgentResponse:
 
         assert response.response_str == "Test response"
         assert response.citations == []
-        assert response.judge_response == ""
+        assert response.judgement == ""
         assert response.route == AgentRouteType.REASONING
 
     def test_agent_response_creation_full(self, sample_citations):
@@ -54,13 +54,13 @@ class TestAgentResponse:
         response = AgentResponse(
             response_str="Test response",
             citations=sample_citations,
-            judge_response="Judge response",
+            judgement="Judge response",
             route=AgentRouteType.WEBSEARCH,
         )
 
         assert response.response_str == "Test response"
         assert response.citations == sample_citations
-        assert response.judge_response == "Judge response"
+        assert response.judgement == "Judge response"
         assert response.route == AgentRouteType.WEBSEARCH
 
     def test_agent_response_mutable_default_fixed(self):
@@ -96,14 +96,14 @@ class TestAgentResponse:
         response1 = AgentResponse(
             response_str="Test response",
             citations=sample_citations,
-            judge_response="Judge",
+            judgement="Judge",
             route=AgentRouteType.WEBSEARCH,
         )
 
         response2 = AgentResponse(
             response_str="Test response",
             citations=sample_citations,
-            judge_response="Judge",
+            judgement="Judge",
             route=AgentRouteType.WEBSEARCH,
         )
 

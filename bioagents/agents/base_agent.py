@@ -28,10 +28,10 @@ except Exception:
 from loguru import logger
 
 from bioagents.agents.common import AgentResponse, AgentRouteType
+from bioagents.judge import ResponseJudge, AgentJudgment
 from bioagents.models.llms import LLM
 from bioagents.models.source import Source
 from bioagents.utils.text_utils import make_contextual_snippet
-
 
 class BaseAgent(ABC):
     def __init__(
@@ -46,11 +46,14 @@ class BaseAgent(ABC):
         self.instructions = instructions
         self.timeout = timeout
         self._agent = None
+        self._response_judge = ResponseJudge(
+            model_name=model_name
+        )
 
     def _construct_response(
         self,
         run_result: RunResult,
-        judge_response: str = "",
+        judgement: AgentJudgment | str = "",
         route: AgentRouteType = AgentRouteType.REASONING,
     ) -> AgentResponse:
         sources = []
@@ -78,7 +81,7 @@ class BaseAgent(ABC):
         return AgentResponse(
             response_str=run_result.final_output,
             citations=sources,
-            judge_response=judge_response,
+            judgement=str(judgement) if judgement is not None else "",
             route=route,
         )
 
@@ -95,10 +98,29 @@ class BaseAgent(ABC):
                 max_turns=3,
             )
             logger.info(f"\t{self.name}: {query_str} -> {trace_id}")
-            # If a tool returned an AgentResponse directly, surface it as-is
+            
+            if isinstance(result.final_output, AgentResponse):
+                response: AgentResponse = result.final_output
+            else:
+                response = AgentResponse(
+                    response_str=str(result.final_output or ""),
+                    citations=[],
+                    judgement="",
+                    route=AgentRouteType.REASONING,
+                )
+
+            judgment = await self._response_judge.judge_response(
+                self.name, response, query_str)
+            response.judgement = str(judgment)
             if isinstance(result.final_output, AgentResponse):
                 return result.final_output
-            return self._construct_response(result, "", AgentRouteType.REASONING)
+
+            # Build an AgentResponse from the RunResult
+            return self._construct_response(
+                result,
+                str(judgment),
+                AgentRouteType.REASONING,
+            )
         except Exception as e:
             logger.error(f"achat: {str(e)}")
             raise e

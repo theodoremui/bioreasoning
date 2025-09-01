@@ -15,7 +15,6 @@ from typing import List
 
 from bioagents.models.source import Source
 
-
 class AgentRouteType(Enum):
     """
     The type of agent response.
@@ -36,5 +35,5 @@ class AgentRouteType(Enum):
 class AgentResponse:
     response_str: str
     citations: List[Source] = field(default_factory=list)
-    judge_response: str = ""
+    judgement: str = ""
     route: AgentRouteType = AgentRouteType.REASONING

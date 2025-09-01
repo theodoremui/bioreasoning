@@ -247,7 +247,7 @@ Stop the graph agent and cleanup resources.
 class AgentResponse:
     response_str: str
     citations: List[Source] = field(default_factory=list)
-    judge_response: str = ""
+    judgement: str = ""
     route: AgentRouteType = AgentRouteType.REASONING
 ```
 

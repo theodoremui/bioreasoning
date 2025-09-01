@@ -31,6 +31,10 @@ During ingestion, `BaseNode.metadata` should include:
 - Prompts the LLM to answer using only those bullets, preserving `[n]`.
 - A separate citations list (title, page, paragraph, snippet, file path) maps `[n]` to provenance.
 
+### UI Presentation (Streamlit)
+- Assistant messages include a “Sources” expander listing citations with optional page ranges and snippets.
+- When HALO orchestrator is used, a separate “Judge” expander shows the structured evaluation derived from `bioagents/judge/` with an overall score and per-subagent notes. The primary response text remains clean; evaluation appears only in the expander.
+
 ### Customization
 - Swap ranking strategies or retrievers by injecting different implementations when constructing the query engine.
 - Adjust limits: `max_summaries_to_use`, `max_triplets_to_use`.
