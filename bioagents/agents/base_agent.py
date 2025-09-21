@@ -12,9 +12,11 @@ from dotenv import find_dotenv, load_dotenv
 
 load_dotenv(find_dotenv())
 
-import asyncio
 from abc import ABC, abstractmethod
+import asyncio
+import os
 import re
+from statsig_python_core import StatsigUser, Statsig, StatsigOptions
 
 from agents import Runner, RunResult, gen_trace_id, trace
 
@@ -47,6 +49,7 @@ class BaseAgent(ABC):
         self.instructions = instructions
         self.timeout = timeout
         self._agent = None
+        self._statsig: Statsig | None = None
         self._response_judge = ResponseJudge(
             model_name=model_name
         )
@@ -101,10 +104,36 @@ class BaseAgent(ABC):
             logger.error(f"Error getting score from judgement: {e}")
         return output_str
 
+    async def log_response(self, event_name: str, query_str: str, response: AgentResponse):
+        STATSIG_SERVER_KEY = os.getenv("STATSIG_SERVER_KEY")
+        if STATSIG_SERVER_KEY and not self._statsig:
+            options = StatsigOptions()
+            options.environment = "development"
+            self._statsig = Statsig(sdk_key=STATSIG_SERVER_KEY, 
+                                    options=options)
+            self._statsig.initialize()
+
+        if self._statsig is not None:
+            user = StatsigUser(
+                user_id=self.name,
+                custom_ids={},
+            )
+            event_name = f"{event_name}"
+            value = str(response.route.value)
+            self._statsig.log_event(
+                user=user, event_name=event_name, value=str(value),
+                metadata={"query": query_str,
+                          "response": response.response_str,
+                          "route": str(response.route.value),
+                          "judgement": str(response.judgement),
+                          "num_citations": str(len(response.citations)),
+                          "model": self.model_name
+                          }
+            )
+
     async def achat(self, query_str: str) -> AgentResponse:
         if self._agent is None:
             raise ValueError("Agent not initialized")
-
         try:
             trace_id = gen_trace_id()
             # Avoid context managers that may hook task groups on close; log trace id explicitly
@@ -128,6 +157,8 @@ class BaseAgent(ABC):
             judgment = await self._response_judge.judge_response(
                 self.name, response, query_str)
             response.judgement = str(judgment)
+
+            await self.log_response("achat", query_str, response)
             if isinstance(result.final_output, AgentResponse):
                 return result.final_output
 

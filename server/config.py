@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+import logging
 from typing import Any, Dict, Optional
 
 import yaml
@@ -51,6 +52,7 @@ def load_app_config(explicit_path: Optional[str] = None) -> AppConfig:
     3) Default ./config/server.yaml if exists
     Env overrides (if set): SERVER_HOST, SERVER_PORT, SERVER_LOG_LEVEL
     """
+    
     # Discover YAML config path
     env_path = os.getenv("SERVER_CONFIG_PATH")
     candidate_path = explicit_path or env_path

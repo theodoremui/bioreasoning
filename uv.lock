@@ -3288,6 +3288,7 @@ dependencies = [
     { name = "qdrant-client" },
     { name = "randomname" },
     { name = "scipy" },
+    { name = "statsig-python-core" },
     { name = "streamlit" },
     { name = "tenacity" },
     { name = "textual" },
@@ -3338,6 +3339,7 @@ requires-dist = [
     { name = "qdrant-client", specifier = "<1.15.0" },
     { name = "randomname", specifier = ">=0.2.1" },
     { name = "scipy", specifier = ">=1.9.0,<1.12.0" },
+    { name = "statsig-python-core", specifier = ">=0.8.5" },
     { name = "streamlit", specifier = ">=1.44.1" },
     { name = "tenacity", specifier = ">=8.5.0" },
     { name = "textual", specifier = ">=5.3.0" },
@@ -3694,6 +3696,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ce/20/08dfcd9c983f6a6f4a1000d934b9e6d626cff8d2eeb77a89a68eef20a2b7/starlette-0.46.2.tar.gz", hash = "sha256:7f7361f34eed179294600af672f565727419830b54b7b084efe44bb82d2fccd5", size = 2580846 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/0c/9d30a4ebeb6db2b25a841afbb80f6ef9a854fc3b41be131d249a977b4959/starlette-0.46.2-py3-none-any.whl", hash = "sha256:595633ce89f8ffa71a015caed34a5b2dc1c0cdb3f0f1fbd1e69339cf2abeec35", size = 72037 },
+]
+
+[[package]]
+name = "statsig-python-core"
+version = "0.8.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/00/3f/dd013e43f6ef6e45c3bdaad488b371810f20e966ddc3109bdfa7c6081ee4/statsig_python_core-0.8.5.tar.gz", hash = "sha256:545ef8b12206a7ce4021eb82737c86cb7c79979b7dba626f8e77319698da39e5", size = 752381 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c2/86/ac812cf377a213ec7ad7173a4cea454edaa349ad65c3c417fec10c1240bd/statsig_python_core-0.8.5-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:125a3c425fe6bef092f5da4b34b66f307141d46af7ebb88fab2be71ce2bcf72c", size = 2909869 },
+    { url = "https://files.pythonhosted.org/packages/16/c8/8fb4c1e81a25c7bf8907f116e88c9d10e373270db100d8619040f251b390/statsig_python_core-0.8.5-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:a4c0f4189579057aeb6059e50e36823674110f33dc99cdbd2130974b53c839ae", size = 2796182 },
+    { url = "https://files.pythonhosted.org/packages/60/69/104b733f8662f70b8ad9810a17d4cb03cde0916668df7b46f52c23944e3d/statsig_python_core-0.8.5-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8032ae7ad0c66e6a6e97edd5990ea27007d78cc987dfe03d313c4c14f3b45846", size = 2997777 },
+    { url = "https://files.pythonhosted.org/packages/13/32/6a811e5b8282a3adcd6caebff9f43eaa4559534545ecf5a57ac9748a773f/statsig_python_core-0.8.5-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ae7343cfbdc29a97359c7f4a0b89fcd10ee1588d14ff9d56cdcef706d2752a55", size = 3114466 },
+    { url = "https://files.pythonhosted.org/packages/a6/4b/c7648e9a5fe1b2e047d870f424632060f157ff2dac353c66267b7f77ff20/statsig_python_core-0.8.5-cp37-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:7769e6b64dfdded91c900d7da66409e161755413ce749b45cf0bbf2b1b9b751b", size = 3073727 },
+    { url = "https://files.pythonhosted.org/packages/eb/8c/01b481df566dda03a0c4bd8d850e9d4ed87d680a2b552b5ff180cfd5a027/statsig_python_core-0.8.5-cp37-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:e4d968b0650b938369e85a6ba032eca8c84960053f02e008d7b044ea76d114c6", size = 3202828 },
+    { url = "https://files.pythonhosted.org/packages/00/eb/82fc92f429619604c24b589a6e4486d47b7987510efe824772b176060a91/statsig_python_core-0.8.5-cp37-abi3-win32.whl", hash = "sha256:6afef9602ca70b478129e428c7aa440dae766b1e219b5a77690f83ec156d1ae4", size = 2652950 },
+    { url = "https://files.pythonhosted.org/packages/cb/20/648d63696f1d6e0ef46f649763b466ae9aa848c8d0354a1bad81af52e3c1/statsig_python_core-0.8.5-cp37-abi3-win_amd64.whl", hash = "sha256:8a220af6d022d8a95a501ff2bcf74e075d0dbaee24e400e302b2026dc28d3d45", size = 3016341 },
 ]
 
 [[package]]
